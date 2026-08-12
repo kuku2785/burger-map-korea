@@ -93,6 +93,7 @@ class _MapScreenState extends State<MapScreen> {
                 _cameraStatus = '카메라 이동 완료';
               });
             },
+            myLocationEnabled: false,
             myLocationButtonEnabled: false,
             mapToolbarEnabled: false,
             zoomControlsEnabled: false,
