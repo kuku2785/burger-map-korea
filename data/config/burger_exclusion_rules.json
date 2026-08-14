@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "large_fast_food_chain",
+      "type": "대형 패스트푸드 체인",
+      "matchMode": "contains",
+      "aliases": [
+        "롯데리아",
+        "맘스터치",
+        "버거킹",
+        "맥도날드",
+        "KFC"
+      ],
+      "categoryKeywords": []
+    },
+    {
+      "id": "pizza_specialty",
+      "type": "피자 전문점",
+      "matchMode": "contains",
+      "aliases": [
+        "파파존스"
+      ],
+      "categoryKeywords": [
+        "피자"
+      ]
+    },
+    {
+      "id": "rice_burger",
+      "type": "밥버거",
+      "matchMode": "contains",
+      "aliases": [
+        "봉구스밥버거"
+      ],
+      "categoryKeywords": []
+    },
+    {
+      "id": "obvious_non_burger_restaurant",
+      "type": "명백한 비버거 음식점",
+      "matchMode": "exact_or_prefix",
+      "aliases": [],
+      "categoryKeywords": []
+    }
+  ]
+}

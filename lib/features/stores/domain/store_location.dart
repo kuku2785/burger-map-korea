@@ -6,8 +6,9 @@ class StoreLocation {
     required this.longitude,
     required this.address,
     required this.burgerStyle,
+    this.verificationStatus,
   }) {
-    if (latitude < -90 || latitude > 90) {
+    if (!latitude.isFinite || latitude < -90 || latitude > 90) {
       throw ArgumentError.value(
         latitude,
         'latitude',
@@ -15,7 +16,7 @@ class StoreLocation {
       );
     }
 
-    if (longitude < -180 || longitude > 180) {
+    if (!longitude.isFinite || longitude < -180 || longitude > 180) {
       throw ArgumentError.value(
         longitude,
         'longitude',
@@ -30,4 +31,5 @@ class StoreLocation {
   final double longitude;
   final String address;
   final String burgerStyle;
+  final String? verificationStatus;
 }

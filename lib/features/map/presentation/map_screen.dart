@@ -1,41 +1,59 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/config/app_config.dart';
-import '../../stores/data/dummy_store_locations.dart';
+import '../../stores/data/itaewon_store_locations.dart';
+import '../../stores/data/staging_store_locations_loader.dart';
 import '../../stores/domain/store_location.dart';
 import 'store_preview_card.dart';
 
+typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
+
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key, required this.config, this.initialMapError});
+  const MapScreen({
+    super.key,
+    required this.config,
+    this.initialMapError,
+    this.stagingStoreLoader,
+  });
 
   final AppConfig config;
   final Object? initialMapError;
+  final StagingStoreLoader? stagingStoreLoader;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
 class _MapScreenState extends State<MapScreen> {
-  static const _initialCameraPosition = CameraPosition(
-    target: LatLng(37.5326, 127.0068),
-    zoom: 12,
+  static const _pilotCameraPosition = CameraPosition(
+    target: LatLng(37.53415, 126.99007),
+    zoom: 16,
   );
 
   final Completer<GoogleMapController> _controller = Completer();
   StoreLocation? _selectedStore;
   bool _isMapReady = false;
   String _cameraStatus = '카메라 이동 대기 중';
-  CameraPosition _lastCameraPosition = _initialCameraPosition;
+  CameraPosition _initialCameraPosition = _pilotCameraPosition;
+  CameraPosition _lastCameraPosition = _pilotCameraPosition;
+  List<StoreLocation>? _stores;
+  Object? _storeLoadError;
   Object? _mapError;
 
   @override
   void initState() {
     super.initState();
     _mapError = widget.initialMapError;
+    if (widget.config.usesStagingStoreData) {
+      _loadStagingStores();
+    } else {
+      _stores = itaewonStoreLocations;
+    }
   }
 
   @override
@@ -60,8 +78,17 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
+    if (_storeLoadError != null) {
+      return MapErrorView(error: _storeLoadError!);
+    }
+
+    final stores = _stores;
+    if (stores == null) {
+      return const StoreDataLoadingView();
+    }
+
     if (!widget.config.hasGoogleMapsApiKey) {
-      return const MissingApiKeyView();
+      return MissingApiKeyView(stores: stores);
     }
 
     if (_mapError != null) {
@@ -73,7 +100,11 @@ class _MapScreenState extends State<MapScreen> {
         Positioned.fill(
           child: GoogleMap(
             initialCameraPosition: _initialCameraPosition,
-            markers: _markers,
+            markers: buildStoreMarkers(stores, (store) {
+              setState(() {
+                _selectedStore = store;
+              });
+            }),
             onMapCreated: _handleMapCreated,
             onTap: (_) {
               setState(() {
@@ -120,19 +151,29 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Set<Marker> get _markers {
-    return dummyStoreLocations.map((store) {
-      return Marker(
-        markerId: MarkerId(store.id),
-        position: LatLng(store.latitude, store.longitude),
-        infoWindow: InfoWindow(title: store.name),
-        onTap: () {
-          setState(() {
-            _selectedStore = store;
-          });
-        },
-      );
-    }).toSet();
+  Future<void> _loadStagingStores() async {
+    try {
+      final loader = widget.stagingStoreLoader;
+      final stores = loader == null
+          ? await loadYongsanStagingStoreLocations()
+          : await loader();
+      if (!mounted) {
+        return;
+      }
+      final cameraPosition = cameraPositionForStores(stores);
+      setState(() {
+        _stores = stores;
+        _initialCameraPosition = cameraPosition;
+        _lastCameraPosition = cameraPosition;
+      });
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _storeLoadError = error;
+      });
+    }
   }
 
   void _handleMapCreated(GoogleMapController controller) {
@@ -147,12 +188,64 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
+Set<Marker> buildStoreMarkers(
+  List<StoreLocation> stores,
+  ValueChanged<StoreLocation> onSelected,
+) {
+  return stores.map((store) {
+    return Marker(
+      markerId: MarkerId(store.id),
+      position: LatLng(store.latitude, store.longitude),
+      infoWindow: InfoWindow(title: store.name),
+      onTap: () => onSelected(store),
+    );
+  }).toSet();
+}
+
+CameraPosition cameraPositionForStores(List<StoreLocation> stores) {
+  if (stores.length <= 3) {
+    return _MapScreenState._pilotCameraPosition;
+  }
+  final minimumLatitude = stores
+      .map((store) => store.latitude)
+      .reduce(math.min);
+  final maximumLatitude = stores
+      .map((store) => store.latitude)
+      .reduce(math.max);
+  final minimumLongitude = stores
+      .map((store) => store.longitude)
+      .reduce(math.min);
+  final maximumLongitude = stores
+      .map((store) => store.longitude)
+      .reduce(math.max);
+  final span = math.max(
+    maximumLatitude - minimumLatitude,
+    maximumLongitude - minimumLongitude,
+  );
+  final zoom = switch (span) {
+    > 0.06 => 11.5,
+    > 0.035 => 12.5,
+    > 0.02 => 13.5,
+    _ => 14.5,
+  };
+  return CameraPosition(
+    target: LatLng(
+      (minimumLatitude + maximumLatitude) / 2,
+      (minimumLongitude + maximumLongitude) / 2,
+    ),
+    zoom: zoom,
+  );
+}
+
 class MissingApiKeyView extends StatelessWidget {
-  const MissingApiKeyView({super.key});
+  const MissingApiKeyView({super.key, this.stores});
+
+  final List<StoreLocation>? stores;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final visibleStores = stores ?? itaewonStoreLocations;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -168,15 +261,15 @@ class MissingApiKeyView extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'GOOGLE_MAPS_API_KEY를 Dart define과 네이티브 설정에 주입하면 '
-            '지도 화면이 표시됩니다. 현재는 더미 매장 데이터만 확인합니다.',
+            '지도 화면이 표시됩니다. 현재는 이태원 검수 매장 데이터만 확인합니다.',
           ),
           const SizedBox(height: 24),
           Expanded(
             child: ListView.separated(
-              itemCount: dummyStoreLocations.length,
+              itemCount: visibleStores.length,
               separatorBuilder: (context, index) => const Divider(),
               itemBuilder: (context, index) {
-                final store = dummyStoreLocations[index];
+                final store = visibleStores[index];
 
                 return ListTile(
                   leading: const Icon(Icons.lunch_dining_outlined),
@@ -190,6 +283,15 @@ class MissingApiKeyView extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class StoreDataLoadingView extends StatelessWidget {
+  const StoreDataLoadingView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
   }
 }
 

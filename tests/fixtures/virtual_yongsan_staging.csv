@@ -1,0 +1,25 @@
+candidateId,displayName,address,latitude,longitude,stagingStatus,sourceType,sourceStoreId,sourcePlaceId,placeUrl,matchedCandidateId,sourceCategory,verificationStatus,addressConflict,provenanceNote
+candidate-01,가상버거 01,서울 용산구 가상로 1,37.501,126.951,candidate_pending,kakao,,PLACE-01,,,,pending,,synthetic fixture
+candidate-02,가상버거 02,서울 용산구 가상로 2,37.502,126.952,candidate_pending,kakao,,PLACE-02,,,,pending,,synthetic fixture
+candidate-03,가상버거 03,서울 용산구 가상로 3,37.503,126.953,candidate_pending,kakao,,PLACE-03,,,,pending,,synthetic fixture
+candidate-04,가상버거 04,서울 용산구 가상로 4,37.504,126.954,candidate_pending,kakao,,PLACE-04,,,,pending,,synthetic fixture
+candidate-05,가상버거 05,서울 용산구 가상로 5,37.505,126.955,candidate_pending,kakao,,PLACE-05,,,,pending,,synthetic fixture
+candidate-06,가상버거 06,서울 용산구 가상로 6,37.506,126.956,candidate_pending,kakao,,PLACE-06,,,,pending,,synthetic fixture
+candidate-07,가상버거 07,서울 용산구 가상로 7,37.507,126.957,candidate_pending,kakao,,PLACE-07,,,,pending,,synthetic fixture
+candidate-08,가상버거 08,서울 용산구 가상로 8,37.508,126.958,candidate_pending,kakao,,PLACE-08,,,,pending,,synthetic fixture
+candidate-09,가상버거 09,서울 용산구 가상로 9,37.509,126.959,candidate_pending,kakao,,PLACE-09,,,,pending,,synthetic fixture
+candidate-10,가상버거 10,서울 용산구 가상로 10,37.510,126.960,candidate_pending,kakao,,PLACE-10,,,,pending,,synthetic fixture
+candidate-11,가상버거 11,서울 용산구 가상로 11,37.511,126.961,candidate_pending,semas_kakao,SYN-11,PLACE-11,,candidate-11,,pending,,synthetic fixture
+candidate-12,가상버거 12,서울 용산구 가상로 12,37.512,126.962,candidate_pending,semas_kakao,SYN-12,PLACE-12,,candidate-12,,pending,,synthetic fixture
+candidate-13,가상버거 13,서울 용산구 가상로 13,37.513,126.963,candidate_pending,semas_kakao,SYN-13,PLACE-13,,candidate-13,,pending,,synthetic fixture
+candidate-14,가상버거 14,서울 용산구 가상로 14,37.514,126.964,candidate_pending,semas_kakao,SYN-14,PLACE-14,,candidate-14,,pending,,synthetic fixture
+candidate-15,가상버거 15,서울 용산구 가상로 15,37.515,126.965,candidate_pending,semas_kakao,SYN-15,PLACE-15,,candidate-15,,pending,,synthetic fixture
+candidate-16,가상버거 16,서울 용산구 가상로 16,37.516,126.966,candidate_pending,semas_kakao,SYN-16,PLACE-16,,candidate-16,,pending,,synthetic fixture
+candidate-17,가상버거 17,서울 용산구 가상로 17,37.517,126.967,candidate_pending,semas_kakao,SYN-17,PLACE-17,,candidate-17,,pending,,synthetic fixture
+candidate-18,가상버거 18,서울 용산구 가상로 18,37.518,126.968,candidate_pending,semas_kakao,SYN-18,PLACE-18,,candidate-18,,pending,,synthetic fixture
+candidate-19,가상버거 19,서울 용산구 가상로 19,37.519,126.969,candidate_pending,semas_kakao,SYN-19,PLACE-19,,candidate-19,,pending,,synthetic fixture
+candidate-20,가상버거 20,서울 용산구 가상로 20,37.520,126.970,candidate_pending,semas_kakao,SYN-20,PLACE-20,,candidate-20,,pending,,synthetic fixture
+candidate-21,가상버거 21,서울 용산구 가상로 21,37.521,126.971,candidate_pending,semas_kakao,SYN-21,PLACE-21,,candidate-21,,pending,,synthetic fixture
+candidate-22,가상버거 22,서울 용산구 가상로 22,37.522,126.972,candidate_pending,semas_kakao,SYN-22,PLACE-22,,candidate-22,,pending,,synthetic fixture
+candidate-23,가상버거 23,서울 용산구 가상로 23,37.523,126.973,candidate_pending,semas_kakao,SYN-23,PLACE-23,,candidate-23,,pending,,synthetic fixture
+candidate-24,가상버거 24,서울 용산구 가상로 24,37.524,126.974,candidate_pending,semas_kakao,SYN-24,PLACE-24,,candidate-24,,pending,,synthetic fixture

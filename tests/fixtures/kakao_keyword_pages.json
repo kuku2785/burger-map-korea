@@ -1,0 +1,121 @@
+{
+  "용산구 수제버거": {
+    "1": {
+      "meta": {"is_end": false},
+      "documents": [
+        {
+          "id": "K001",
+          "place_name": "가상버거 용산점",
+          "category_name": "음식점 > 양식 > 햄버거",
+          "address_name": "서울 용산구 가상동 1",
+          "road_address_name": "서울 용산구 가상로 1",
+          "x": "126.9800",
+          "y": "37.5300",
+          "place_url": "https://place.map.kakao.com/K001"
+        },
+        {
+          "id": "K002",
+          "place_name": "외부가상버거",
+          "category_name": "음식점 > 양식 > 햄버거",
+          "address_name": "서울 마포구 가상동 2",
+          "road_address_name": "서울 마포구 가상로 2",
+          "x": "126.9100",
+          "y": "37.5500",
+          "place_url": "https://place.map.kakao.com/K002"
+        },
+        {
+          "id": "K003",
+          "place_name": "버거킹가상점",
+          "category_name": "음식점 > 패스트푸드",
+          "address_name": "서울 용산구 가상동 3",
+          "road_address_name": "서울 용산구 가상로 3",
+          "x": "126.9810",
+          "y": "37.5310",
+          "place_url": "https://place.map.kakao.com/K003"
+        },
+        {
+          "id": "K004",
+          "place_name": "가상그릴연구소",
+          "category_name": "음식점 > 양식",
+          "address_name": "서울 용산구 가상동 4",
+          "road_address_name": "서울 용산구 가상로 4",
+          "x": "126.9900",
+          "y": "37.5400",
+          "place_url": "https://place.map.kakao.com/K004"
+        }
+      ]
+    },
+    "2": {
+      "meta": {"is_end": true},
+      "documents": [
+        {
+          "id": "K001",
+          "place_name": "가상버거 용산점",
+          "category_name": "음식점 > 양식 > 햄버거",
+          "address_name": "서울 용산구 가상동 1",
+          "road_address_name": "서울 용산구 가상로 1",
+          "x": "126.9800",
+          "y": "37.5300",
+          "place_url": "https://place.map.kakao.com/K001"
+        },
+        {
+          "id": "K005",
+          "place_name": "서로다른가상식당",
+          "category_name": "음식점 > 양식 > 햄버거",
+          "address_name": "서울 용산구 가상동 5",
+          "road_address_name": "서울 용산구 다른가상로 5",
+          "x": "126.9801",
+          "y": "37.5301",
+          "place_url": "https://place.map.kakao.com/K005"
+        },
+        {
+          "id": "K006",
+          "place_name": "새로운가상치즈버거",
+          "category_name": "음식점 > 양식 > 햄버거",
+          "address_name": "서울 용산구 가상동 6",
+          "road_address_name": "서울 용산구 가상로 6",
+          "x": "126.9950",
+          "y": "37.5450",
+          "place_url": "https://place.map.kakao.com/K006"
+        }
+      ]
+    }
+  },
+  "이태원 수제버거": {
+    "1": {
+      "meta": {"is_end": true},
+      "documents": [
+        {
+          "id": "K001",
+          "place_name": "가상버거 용산점",
+          "category_name": "음식점 > 양식 > 햄버거",
+          "address_name": "서울 용산구 가상동 1",
+          "road_address_name": "서울 용산구 가상로 1",
+          "x": "126.9800",
+          "y": "37.5300",
+          "place_url": "https://place.map.kakao.com/K001"
+        },
+        {
+          "id": "K007",
+          "place_name": "파파존스가상점",
+          "category_name": "음식점 > 피자",
+          "address_name": "서울 용산구 가상동 7",
+          "road_address_name": "서울 용산구 가상로 7",
+          "x": "126.9970",
+          "y": "37.5470",
+          "place_url": "https://place.map.kakao.com/K007"
+        },
+        {
+          "id": "K008",
+          "place_name": "봉구스밥버거가상점",
+          "category_name": "음식점 > 분식",
+          "address_name": "서울 용산구 가상동 8",
+          "road_address_name": "서울 용산구 가상로 8",
+          "x": "126.9980",
+          "y": "37.5480",
+          "place_url": "https://place.map.kakao.com/K008"
+        }
+      ]
+    }
+  }
+}

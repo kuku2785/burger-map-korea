@@ -58,3 +58,20 @@ app.*.map.json
 /ios/Flutter/Generated.xcconfig
 /ios/Flutter/flutter_export_environment.sh
 /ios/Flutter/ephemeral/
+
+# Local public-data inputs and generated review outputs
+/data/raw/*
+!/data/raw/.gitkeep
+/data/review/*.csv
+/data/staging/*.csv
+!/data/staging/.gitkeep
+
+# Local manual-review decisions containing external place identifiers
+/data/config/kakao_burger_address_recheck_targets.json
+/data/config/kakao_manual_review_decisions.json
+/data/config/manual_address_resolutions.json
+/data/config/yongsan_staging_hold_rules.json
+
+# Generated development-only Flutter staging assets
+/assets/dev/*.json
+!/assets/dev/.gitkeep

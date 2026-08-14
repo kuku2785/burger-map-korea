@@ -144,12 +144,19 @@ flutter run --dart-define=APP_ENV=development --dart-define=GOOGLE_MAPS_API_KEY=
 ## 테스트방법
 
 ```powershell
+python -m unittest discover -s tests/data -p "test_*.py" -v
 dart format .
 flutter pub get
 flutter analyze
 flutter test
 flutter build apk --debug
 ```
+
+## Phase 2.1A 후보 추출기
+
+공공 상가정보 CSV에서 용산구 버거 매장 후보를 생성하는 로컬 도구는 `scripts/data/extract_burger_candidates.py`에 있습니다. 실제 CSV와 생성된 검수 CSV는 Git에서 제외되며, 후보는 자동 승인되거나 Flutter 앱에 표시되지 않습니다.
+
+입력 파일 준비, 기준일 입력, 실행 명령과 검수 규칙은 `scripts/data/README.md`를 확인합니다.
 
 ## 알려진 제한사항
 
