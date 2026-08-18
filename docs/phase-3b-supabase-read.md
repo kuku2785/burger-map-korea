@@ -78,7 +78,8 @@ Google Maps 키가 Gradle property 등 기존 로컬 설정으로 주입된다�
 
 2026-08-18 Android `emulator-5554`에서 development + supabase 모드의 실제 연결을 검증했다.
 
-- 초기 실패 원인: `SUPABASE_URL`에 `/rest/v1`이 포함되어 SDK가 잘못된 REST 경로를 생성했다.
+- 초기 실패 증상: 공개 조회가 `PGRST125` 오류로 실패했다.
+- 확인된 원인: `SUPABASE_URL`에 `/rest/v1`이 포함되어 SDK가 REST 경로를 다시 붙이면서 중복 경로를 생성했다.
 - 수정: `SUPABASE_URL`을 프로젝트 기본 URL 형식으로 변경했다.
 - 결과: RLS가 적용된 빈 `stores` 테이블 조회에 성공했고 `현재 공개된 매장이 없습니다.` 화면이 정상 표시됐다.
 - 확인 범위: Publishable Key 기반 읽기 연결, 0행 응답, 정상 빈 상태 처리.
@@ -89,3 +90,15 @@ Google Maps 키가 Gradle property 등 기존 로컬 설정으로 주입된다�
 ## 안전한 오류 진단
 
 development debug 빌드에서만 Supabase 로더의 실패 단계와 안전한 오류 코드가 출력된다. URL, 키, 요청 헤더, 서버 응답 원문은 출력하지 않는다. production/release에서는 진단 로그가 비활성화된다.
+
+## Phase 3C 게시 후 재검증
+
+2026-08-18 사용자가 승인 매장 1곳을 개발용 Supabase에 수동 게시한 뒤 같은 development + supabase 모드에서 다시 검증했다.
+
+- Google 지도 타일 정상 표시
+- RLS 공개 SELECT로 검증·활성 매장 1곳 조회
+- 해당 매장 마커 1개 표시
+- 마커 선택 후 이름과 주소 상세 카드 표시
+- 사용자 육안 검증 완료
+
+Flutter에는 쓰기 경로를 추가하지 않았으며 게시와 운영 변경은 관리자 SQL을 통해서만 수행한다.

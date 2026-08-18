@@ -64,6 +64,7 @@ app.*.map.json
 !/data/raw/.gitkeep
 /data/review/*.csv
 /data/staging/*.csv
+/data/staging/*.sql
 !/data/staging/.gitkeep
 
 # Local manual-review decisions containing external place identifiers
