@@ -24,12 +24,18 @@ enum AppEnvironment {
 
 enum StoreDataMode {
   pilot,
-  staging;
+  staging,
+  supabase;
 
   static StoreDataMode parse(String value) {
-    return value.trim().toLowerCase() == 'staging'
-        ? StoreDataMode.staging
-        : StoreDataMode.pilot;
+    switch (value.trim().toLowerCase()) {
+      case 'staging':
+        return StoreDataMode.staging;
+      case 'supabase':
+        return StoreDataMode.supabase;
+      default:
+        return StoreDataMode.pilot;
+    }
   }
 }
 
@@ -38,6 +44,8 @@ class AppConfig {
     required this.environment,
     required this.googleMapsApiKey,
     this.storeDataMode = StoreDataMode.pilot,
+    this.supabaseUrl = '',
+    this.supabasePublishableKey = '',
   });
 
   factory AppConfig.fromDartDefines() {
@@ -49,22 +57,45 @@ class AppConfig {
       storeDataMode: StoreDataMode.parse(
         const String.fromEnvironment('STORE_DATA_MODE', defaultValue: 'pilot'),
       ),
+      supabaseUrl: const String.fromEnvironment('SUPABASE_URL'),
+      supabasePublishableKey: const String.fromEnvironment(
+        'SUPABASE_PUBLISHABLE_KEY',
+      ),
     );
   }
 
   final AppEnvironment environment;
   final String googleMapsApiKey;
   final StoreDataMode storeDataMode;
+  final String supabaseUrl;
+  final String supabasePublishableKey;
 
   bool get hasGoogleMapsApiKey => googleMapsApiKey.trim().isNotEmpty;
+  bool get hasSupabaseUrl => supabaseUrl.trim().isNotEmpty;
+  bool get hasSupabasePublishableKey =>
+      supabasePublishableKey.trim().isNotEmpty;
+  bool get hasSupabaseConfiguration =>
+      hasSupabaseUrl && hasSupabasePublishableKey;
 
   bool get usesStagingStoreData =>
       !kReleaseMode &&
       environment == AppEnvironment.development &&
       storeDataMode == StoreDataMode.staging;
 
-  StoreDataMode get effectiveStoreDataMode =>
-      usesStagingStoreData ? StoreDataMode.staging : StoreDataMode.pilot;
+  bool get usesSupabaseStoreData =>
+      !kReleaseMode &&
+      environment == AppEnvironment.development &&
+      storeDataMode == StoreDataMode.supabase;
+
+  StoreDataMode get effectiveStoreDataMode {
+    if (usesStagingStoreData) {
+      return StoreDataMode.staging;
+    }
+    if (usesSupabaseStoreData) {
+      return StoreDataMode.supabase;
+    }
+    return StoreDataMode.pilot;
+  }
 
   String get environmentLabel {
     switch (environment) {

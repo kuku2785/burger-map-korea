@@ -1,5 +1,6 @@
 import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/stores/data/itaewon_store_locations.dart';
+import 'package:burger_map_korea/features/stores/data/supabase_store_locations_loader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/staging_fixture.dart';
@@ -63,4 +64,26 @@ void main() {
       );
     },
   );
+
+  test('Supabase store rows map to markers using internal UUIDs', () {
+    final stores = mapSupabaseStoreRows([
+      {
+        'id': '11111111-1111-4111-8111-111111111111',
+        'name': 'Alpha Burger',
+        'address': 'Seoul test address',
+        'latitude': 37.51,
+        'longitude': 126.98,
+        'burger_style': null,
+        'verification_status': 'verified',
+      },
+    ]);
+
+    final markers = buildStoreMarkers(stores, (_) {});
+
+    expect(markers, hasLength(1));
+    expect(
+      markers.single.markerId.value,
+      '11111111-1111-4111-8111-111111111111',
+    );
+  });
 }

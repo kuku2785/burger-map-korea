@@ -34,11 +34,15 @@ void main() {
   });
 
   group('StoreDataMode', () {
-    test('parses staging and defaults all other values to pilot', () {
-      expect(StoreDataMode.parse('staging'), StoreDataMode.staging);
-      expect(StoreDataMode.parse('pilot'), StoreDataMode.pilot);
-      expect(StoreDataMode.parse('unknown'), StoreDataMode.pilot);
-    });
+    test(
+      'parses staging and supabase and defaults unknown values to pilot',
+      () {
+        expect(StoreDataMode.parse('staging'), StoreDataMode.staging);
+        expect(StoreDataMode.parse('supabase'), StoreDataMode.supabase);
+        expect(StoreDataMode.parse('pilot'), StoreDataMode.pilot);
+        expect(StoreDataMode.parse('unknown'), StoreDataMode.pilot);
+      },
+    );
 
     test('defaults AppConfig data mode to pilot', () {
       const config = AppConfig(
@@ -73,6 +77,66 @@ void main() {
       expect(stagingEnvironment.effectiveStoreDataMode, StoreDataMode.pilot);
       expect(production.usesStagingStoreData, isFalse);
       expect(production.effectiveStoreDataMode, StoreDataMode.pilot);
+    });
+
+    test('enables supabase data only in development environment', () {
+      const development = AppConfig(
+        environment: AppEnvironment.development,
+        googleMapsApiKey: '',
+        storeDataMode: StoreDataMode.supabase,
+      );
+      const production = AppConfig(
+        environment: AppEnvironment.production,
+        googleMapsApiKey: '',
+        storeDataMode: StoreDataMode.supabase,
+      );
+
+      expect(development.usesSupabaseStoreData, isTrue);
+      expect(development.effectiveStoreDataMode, StoreDataMode.supabase);
+      expect(production.usesSupabaseStoreData, isFalse);
+      expect(production.effectiveStoreDataMode, StoreDataMode.pilot);
+    });
+
+    test('detects missing Supabase URL and publishable key separately', () {
+      const missingUrl = AppConfig(
+        environment: AppEnvironment.development,
+        googleMapsApiKey: '',
+        supabasePublishableKey: 'publishable-test-value',
+      );
+      const missingKey = AppConfig(
+        environment: AppEnvironment.development,
+        googleMapsApiKey: '',
+        supabaseUrl: 'https://unit.invalid',
+      );
+      const configured = AppConfig(
+        environment: AppEnvironment.development,
+        googleMapsApiKey: '',
+        supabaseUrl: 'https://unit.invalid',
+        supabasePublishableKey: 'publishable-test-value',
+      );
+
+      expect(missingUrl.hasSupabaseUrl, isFalse);
+      expect(missingUrl.hasSupabaseConfiguration, isFalse);
+      expect(missingKey.hasSupabasePublishableKey, isFalse);
+      expect(missingKey.hasSupabaseConfiguration, isFalse);
+      expect(configured.hasSupabaseConfiguration, isTrue);
+    });
+
+    test('pilot and staging modes do not require Supabase configuration', () {
+      const pilot = AppConfig(
+        environment: AppEnvironment.development,
+        googleMapsApiKey: '',
+      );
+      const staging = AppConfig(
+        environment: AppEnvironment.development,
+        googleMapsApiKey: '',
+        storeDataMode: StoreDataMode.staging,
+      );
+
+      expect(pilot.hasSupabaseConfiguration, isFalse);
+      expect(pilot.effectiveStoreDataMode, StoreDataMode.pilot);
+      expect(staging.hasSupabaseConfiguration, isFalse);
+      expect(staging.effectiveStoreDataMode, StoreDataMode.staging);
     });
   });
 }

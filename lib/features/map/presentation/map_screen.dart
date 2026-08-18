@@ -8,10 +8,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/config/app_config.dart';
 import '../../stores/data/itaewon_store_locations.dart';
 import '../../stores/data/staging_store_locations_loader.dart';
+import '../../stores/data/supabase_store_locations_loader.dart';
 import '../../stores/domain/store_location.dart';
 import 'store_preview_card.dart';
 
 typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
+typedef SupabaseStoreLoader = Future<List<StoreLocation>> Function();
 
 class MapScreen extends StatefulWidget {
   const MapScreen({
@@ -19,11 +21,13 @@ class MapScreen extends StatefulWidget {
     required this.config,
     this.initialMapError,
     this.stagingStoreLoader,
+    this.supabaseStoreLoader,
   });
 
   final AppConfig config;
   final Object? initialMapError;
   final StagingStoreLoader? stagingStoreLoader;
+  final SupabaseStoreLoader? supabaseStoreLoader;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -49,10 +53,15 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _mapError = widget.initialMapError;
-    if (widget.config.usesStagingStoreData) {
-      _loadStagingStores();
-    } else {
-      _stores = itaewonStoreLocations;
+    switch (widget.config.effectiveStoreDataMode) {
+      case StoreDataMode.pilot:
+        _stores = itaewonStoreLocations;
+      case StoreDataMode.staging:
+        _loadStagingStores();
+      case StoreDataMode.supabase:
+        if (widget.config.hasSupabaseConfiguration) {
+          _loadSupabaseStores();
+        }
     }
   }
 
@@ -78,13 +87,25 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
+    if (widget.config.usesSupabaseStoreData &&
+        !widget.config.hasSupabaseConfiguration) {
+      return MissingSupabaseConfigView(config: widget.config);
+    }
+
     if (_storeLoadError != null) {
+      if (widget.config.usesSupabaseStoreData) {
+        return StoreDataErrorView(onRetry: _loadSupabaseStores);
+      }
       return MapErrorView(error: _storeLoadError!);
     }
 
     final stores = _stores;
     if (stores == null) {
       return const StoreDataLoadingView();
+    }
+
+    if (widget.config.usesSupabaseStoreData && stores.isEmpty) {
+      return const StoreDataEmptyView();
     }
 
     if (!widget.config.hasGoogleMapsApiKey) {
@@ -176,6 +197,40 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  Future<void> _loadSupabaseStores() async {
+    if (_storeLoadError != null || _stores != null) {
+      setState(() {
+        _storeLoadError = null;
+        _stores = null;
+        _selectedStore = null;
+      });
+    }
+
+    try {
+      final loader = widget.supabaseStoreLoader;
+      if (loader == null) {
+        throw const SupabaseStoreLoadException();
+      }
+      final stores = await loader();
+      if (!mounted) {
+        return;
+      }
+      final cameraPosition = cameraPositionForStores(stores);
+      setState(() {
+        _stores = stores;
+        _initialCameraPosition = cameraPosition;
+        _lastCameraPosition = cameraPosition;
+      });
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _storeLoadError = const SupabaseStoreLoadException();
+      });
+    }
+  }
+
   void _handleMapCreated(GoogleMapController controller) {
     if (!_controller.isCompleted) {
       _controller.complete(controller);
@@ -203,7 +258,7 @@ Set<Marker> buildStoreMarkers(
 }
 
 CameraPosition cameraPositionForStores(List<StoreLocation> stores) {
-  if (stores.length <= 3) {
+  if (stores.isEmpty) {
     return _MapScreenState._pilotCameraPosition;
   }
   final minimumLatitude = stores
@@ -292,6 +347,113 @@ class StoreDataLoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(child: CircularProgressIndicator());
+  }
+}
+
+class MissingSupabaseConfigView extends StatelessWidget {
+  const MissingSupabaseConfigView({super.key, required this.config});
+
+  final AppConfig config;
+
+  @override
+  Widget build(BuildContext context) {
+    final missingVariables = <String>[
+      if (!config.hasSupabaseUrl) 'SUPABASE_URL',
+      if (!config.hasSupabasePublishableKey) 'SUPABASE_PUBLISHABLE_KEY',
+    ];
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 44,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Supabase 공개 설정이 필요합니다.',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '누락된 설정: ${missingVariables.join(', ')}',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class StoreDataEmptyView extends StatelessWidget {
+  const StoreDataEmptyView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.storefront_outlined,
+              size: 44,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '현재 공개된 매장이 없습니다.',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class StoreDataErrorView extends StatelessWidget {
+  const StoreDataErrorView({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 44,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '공개 매장 정보를 불러오지 못했습니다.',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
