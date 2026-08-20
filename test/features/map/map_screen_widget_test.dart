@@ -8,15 +8,72 @@ import 'package:burger_map_korea/features/stores/data/itaewon_store_locations.da
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../support/staging_fixture.dart';
 
 void main() {
+  final searchableStores = <StoreLocation>[
+    StoreLocation(
+      id: 'alpha',
+      name: 'Alpha Burger',
+      address: 'Seoul Yongsan Alpha-ro 1',
+      latitude: 37.53,
+      longitude: 126.99,
+      burgerStyle: '미분류',
+      verificationStatus: 'verified',
+    ),
+    StoreLocation(
+      id: 'beta',
+      name: 'Beta Kitchen',
+      address: 'Seoul Itaewon Burger-gil 2',
+      latitude: 37.54,
+      longitude: 127.0,
+      burgerStyle: '미분류',
+      verificationStatus: 'verified',
+    ),
+    StoreLocation(
+      id: 'gamma',
+      name: 'Gamma Grill',
+      address: 'Seoul Hangang-daero 3',
+      latitude: 37.52,
+      longitude: 126.98,
+      burgerStyle: '미분류',
+      verificationStatus: 'verified',
+    ),
+  ];
+
   Widget testApp(Widget child) {
     return MaterialApp(
       theme: AppTheme.light,
       home: Scaffold(body: child),
     );
+  }
+
+  Future<void> pumpSearchableMap(
+    WidgetTester tester, {
+    required SupabaseStoreLoader loader,
+    required StoreMapSurfaceBuilder mapSurfaceBuilder,
+    StoreCameraMover? storeCameraMover,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: MapScreen(
+          config: const AppConfig(
+            environment: AppEnvironment.development,
+            googleMapsApiKey: 'test-key',
+            storeDataMode: StoreDataMode.supabase,
+            supabaseUrl: 'https://unit.invalid',
+            supabasePublishableKey: 'publishable-test-value',
+          ),
+          supabaseStoreLoader: loader,
+          mapSurfaceBuilder: mapSurfaceBuilder,
+          storeCameraMover: storeCameraMover,
+        ),
+      ),
+    );
+    await tester.pump();
   }
 
   testWidgets('does not show preview card when no store is selected', (
@@ -227,5 +284,237 @@ void main() {
 
     expect(attempts, 2);
     expect(find.byType(StoreDataEmptyView), findsOneWidget);
+  });
+
+  testWidgets('filters markers by name and restores all markers on clear', (
+    tester,
+  ) async {
+    var markerCount = 0;
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        markerCount = markers.length;
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    expect(markerCount, 3);
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+    await tester.pump();
+
+    expect(markerCount, 1);
+    expect(find.text('Alpha Burger'), findsOneWidget);
+    expect(find.text('Beta Kitchen'), findsNothing);
+
+    await tester.tap(find.byKey(storeSearchClearButtonKey));
+    await tester.pump();
+
+    expect(markerCount, 3);
+    expect(find.byKey(storeSearchResultsKey), findsNothing);
+  });
+
+  testWidgets('shows address matches and an explicit no-results state', (
+    tester,
+  ) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    await tester.enterText(
+      find.byKey(storeSearchFieldKey),
+      '  ITAEWON   burger ',
+    );
+    await tester.pump();
+    expect(find.text('Beta Kitchen'), findsOneWidget);
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'missing store');
+    await tester.pump();
+    expect(find.text('검색 결과가 없습니다.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'selecting a result shows its card and requests camera movement',
+    (tester) async {
+      StoreLocation? movedStore;
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        storeCameraMover: (store) async {
+          movedStore = store;
+        },
+      );
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('store-search-result-alpha')),
+      );
+      await tester.pump();
+
+      expect(find.byType(StorePreviewCard), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(StorePreviewCard),
+          matching: find.text('Alpha Burger'),
+        ),
+        findsOneWidget,
+      );
+      expect(movedStore?.id, 'alpha');
+      expect(tester.testTextInput.isVisible, isFalse);
+    },
+  );
+
+  testWidgets(
+    'changing the filter deselects a store that is no longer visible',
+    (tester) async {
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        storeCameraMover: (_) async {},
+      );
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey<String>('store-search-result-alpha')),
+      );
+      await tester.pump();
+      expect(find.byType(StorePreviewCard), findsOneWidget);
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'beta');
+      await tester.pump();
+      expect(find.byType(StorePreviewCard), findsNothing);
+    },
+  );
+
+  testWidgets('typing and selecting search results do not reload store data', (
+    tester,
+  ) async {
+    var loadCalls = 0;
+    await pumpSearchableMap(
+      tester,
+      loader: () async {
+        loadCalls += 1;
+        return searchableStores;
+      },
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      storeCameraMover: (_) async {},
+    );
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'a');
+    await tester.pump();
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('store-search-result-alpha')),
+    );
+    await tester.pump();
+
+    expect(loadCalls, 1);
+  });
+
+  testWidgets(
+    'marker selection and blank map tap keep their existing behavior',
+    (tester) async {
+      Set<Marker> markers = const <Marker>{};
+      ValueChanged<LatLng>? mapTap;
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (nextMarkers, onMapTap) {
+          markers = nextMarkers;
+          mapTap = onMapTap;
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+
+      markers
+          .firstWhere((marker) => marker.markerId.value == 'beta')
+          .onTap
+          ?.call();
+      await tester.pump();
+      expect(find.byType(StorePreviewCard), findsOneWidget);
+
+      mapTap?.call(const LatLng(37.5, 127));
+      await tester.pump();
+      expect(find.byType(StorePreviewCard), findsNothing);
+    },
+  );
+
+  testWidgets('clear search has an accessible label and compact layout', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'a');
+    await tester.pump();
+
+    final clearButton = tester.widget<IconButton>(
+      find.byKey(storeSearchClearButtonKey),
+    );
+    expect(clearButton.tooltip, '검색어 지우기');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('search is available in pilot and staging data modes', (
+    tester,
+  ) async {
+    Widget mapSurface(Set<Marker> markers, ValueChanged<LatLng> onMapTap) {
+      return const ColoredBox(color: Colors.white);
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          config: const AppConfig(
+            environment: AppEnvironment.development,
+            googleMapsApiKey: 'test-key',
+          ),
+          mapSurfaceBuilder: mapSurface,
+        ),
+      ),
+    );
+    expect(find.byKey(storeSearchFieldKey), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          config: const AppConfig(
+            environment: AppEnvironment.development,
+            googleMapsApiKey: 'test-key',
+            storeDataMode: StoreDataMode.staging,
+          ),
+          stagingStoreLoader: () async => loadStagingFixture(),
+          mapSurfaceBuilder: mapSurface,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(storeSearchFieldKey), findsOneWidget);
   });
 }

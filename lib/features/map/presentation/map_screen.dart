@@ -10,10 +10,18 @@ import '../../stores/data/itaewon_store_locations.dart';
 import '../../stores/data/staging_store_locations_loader.dart';
 import '../../stores/data/supabase_store_locations_loader.dart';
 import '../../stores/domain/store_location.dart';
+import '../../stores/domain/store_search.dart';
 import 'store_preview_card.dart';
 
 typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
 typedef SupabaseStoreLoader = Future<List<StoreLocation>> Function();
+typedef StoreCameraMover = Future<void> Function(StoreLocation store);
+typedef StoreMapSurfaceBuilder =
+    Widget Function(Set<Marker> markers, ValueChanged<LatLng> onMapTap);
+
+const storeSearchFieldKey = ValueKey<String>('store-search-field');
+const storeSearchClearButtonKey = ValueKey<String>('store-search-clear-button');
+const storeSearchResultsKey = ValueKey<String>('store-search-results');
 
 class MapScreen extends StatefulWidget {
   const MapScreen({
@@ -22,12 +30,16 @@ class MapScreen extends StatefulWidget {
     this.initialMapError,
     this.stagingStoreLoader,
     this.supabaseStoreLoader,
+    this.storeCameraMover,
+    this.mapSurfaceBuilder,
   });
 
   final AppConfig config;
   final Object? initialMapError;
   final StagingStoreLoader? stagingStoreLoader;
   final SupabaseStoreLoader? supabaseStoreLoader;
+  final StoreCameraMover? storeCameraMover;
+  final StoreMapSurfaceBuilder? mapSurfaceBuilder;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -40,7 +52,10 @@ class _MapScreenState extends State<MapScreen> {
   );
 
   final Completer<GoogleMapController> _controller = Completer();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   StoreLocation? _selectedStore;
+  String _searchQuery = '';
   bool _isMapReady = false;
   String _cameraStatus = '카메라 이동 대기 중';
   CameraPosition _initialCameraPosition = _pilotCameraPosition;
@@ -63,6 +78,13 @@ class _MapScreenState extends State<MapScreen> {
           _loadSupabaseStores();
         }
     }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -116,49 +138,65 @@ class _MapScreenState extends State<MapScreen> {
       return MapErrorView(error: _mapError!);
     }
 
+    final visibleStores = filterStoreLocations(stores, _searchQuery);
+    final markers = buildStoreMarkers(visibleStores, _selectStore);
+    final mapSurfaceBuilder = widget.mapSurfaceBuilder;
+
     return Stack(
       children: [
         Positioned.fill(
-          child: GoogleMap(
-            initialCameraPosition: _initialCameraPosition,
-            markers: buildStoreMarkers(stores, (store) {
-              setState(() {
-                _selectedStore = store;
-              });
-            }),
-            onMapCreated: _handleMapCreated,
-            onTap: (_) {
-              setState(() {
-                _selectedStore = null;
-              });
-            },
-            onCameraMoveStarted: () {
-              setState(() {
-                _cameraStatus = '카메라 이동 중';
-              });
-            },
-            onCameraMove: (position) {
-              _lastCameraPosition = position;
-            },
-            onCameraIdle: () {
-              setState(() {
-                _cameraStatus = '카메라 이동 완료';
-              });
-            },
-            myLocationEnabled: false,
-            myLocationButtonEnabled: false,
-            mapToolbarEnabled: false,
-            zoomControlsEnabled: false,
-          ),
+          child: mapSurfaceBuilder == null
+              ? GoogleMap(
+                  initialCameraPosition: _initialCameraPosition,
+                  markers: markers,
+                  onMapCreated: _handleMapCreated,
+                  onTap: _handleMapTap,
+                  onCameraMoveStarted: () {
+                    setState(() {
+                      _cameraStatus = '카메라 이동 중';
+                    });
+                  },
+                  onCameraMove: (position) {
+                    _lastCameraPosition = position;
+                  },
+                  onCameraIdle: () {
+                    setState(() {
+                      _cameraStatus = '카메라 이동 완료';
+                    });
+                  },
+                  myLocationEnabled: false,
+                  myLocationButtonEnabled: false,
+                  mapToolbarEnabled: false,
+                  zoomControlsEnabled: false,
+                )
+              : mapSurfaceBuilder(markers, _handleMapTap),
         ),
-        if (!_isMapReady) const _MapLoadingOverlay(),
+        if (!_isMapReady && mapSurfaceBuilder == null)
+          const _MapLoadingOverlay(),
         Positioned(
           left: 16,
           right: 16,
           top: 16,
-          child: _CameraStatusCard(
-            status: _cameraStatus,
-            cameraPosition: _lastCameraPosition,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _StoreSearchPanel(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                query: _searchQuery,
+                results: visibleStores,
+                onChanged: _handleSearchChanged,
+                onClear: _clearSearch,
+                onSelected: _selectSearchResult,
+              ),
+              if (normalizeStoreSearchText(_searchQuery).isEmpty) ...[
+                const SizedBox(height: 8),
+                _CameraStatusCard(
+                  status: _cameraStatus,
+                  cameraPosition: _lastCameraPosition,
+                ),
+              ],
+            ],
           ),
         ),
         if (_selectedStore != null)
@@ -231,6 +269,59 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  void _selectStore(StoreLocation store) {
+    setState(() {
+      _selectedStore = store;
+    });
+  }
+
+  void _handleMapTap(LatLng _) {
+    setState(() {
+      _selectedStore = null;
+    });
+  }
+
+  void _handleSearchChanged(String query) {
+    final stores = _stores ?? const <StoreLocation>[];
+    final visibleStoreIds = filterStoreLocations(
+      stores,
+      query,
+    ).map((store) => store.id).toSet();
+
+    setState(() {
+      _searchQuery = query;
+      if (_selectedStore != null &&
+          !visibleStoreIds.contains(_selectedStore!.id)) {
+        _selectedStore = null;
+      }
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    _handleSearchChanged('');
+  }
+
+  Future<void> _selectSearchResult(StoreLocation store) async {
+    _searchFocusNode.unfocus();
+    _selectStore(store);
+
+    final storeCameraMover = widget.storeCameraMover;
+    if (storeCameraMover != null) {
+      await storeCameraMover(store);
+      return;
+    }
+    if (!_controller.isCompleted) {
+      return;
+    }
+
+    final controller = await _controller.future;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(store.latitude, store.longitude), 16),
+    );
+  }
+
   void _handleMapCreated(GoogleMapController controller) {
     if (!_controller.isCompleted) {
       _controller.complete(controller);
@@ -240,6 +331,114 @@ class _MapScreenState extends State<MapScreen> {
       _isMapReady = true;
       _cameraStatus = '지도 로딩 완료';
     });
+  }
+}
+
+class _StoreSearchPanel extends StatelessWidget {
+  const _StoreSearchPanel({
+    required this.controller,
+    required this.focusNode,
+    required this.query,
+    required this.results,
+    required this.onChanged,
+    required this.onClear,
+    required this.onSelected,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String query;
+  final List<StoreLocation> results;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  final ValueChanged<StoreLocation> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasQuery = normalizeStoreSearchText(query).isNotEmpty;
+    final maximumResultsHeight = math.min(
+      220.0,
+      math.max(96.0, MediaQuery.sizeOf(context).height * 0.28),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          clipBehavior: Clip.antiAlias,
+          child: TextField(
+            key: storeSearchFieldKey,
+            controller: controller,
+            focusNode: focusNode,
+            onChanged: onChanged,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              labelText: '매장 검색',
+              hintText: '매장명 또는 주소',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: hasQuery
+                  ? IconButton(
+                      key: storeSearchClearButtonKey,
+                      onPressed: onClear,
+                      tooltip: '검색어 지우기',
+                      icon: const Icon(Icons.clear),
+                    )
+                  : null,
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surface,
+              border: InputBorder.none,
+            ),
+          ),
+        ),
+        if (hasQuery) ...[
+          const SizedBox(height: 8),
+          Material(
+            key: storeSearchResultsKey,
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            clipBehavior: Clip.antiAlias,
+            color: Theme.of(context).colorScheme.surface,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maximumResultsHeight),
+              child: results.isEmpty
+                  ? const SizedBox(
+                      height: 64,
+                      child: Center(child: Text('검색 결과가 없습니다.')),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: results.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final store = results[index];
+                        return ListTile(
+                          key: ValueKey<String>(
+                            'store-search-result-${store.id}',
+                          ),
+                          minTileHeight: 56,
+                          title: Text(
+                            store.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            store.address,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => onSelected(store),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
 
