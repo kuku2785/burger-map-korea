@@ -6,6 +6,7 @@ import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
 import 'package:burger_map_korea/features/stores/data/itaewon_store_locations.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
+import 'package:burger_map_korea/features/stores/presentation/store_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -99,12 +100,15 @@ void main() {
   ) async {
     final store = itaewonStoreLocations.first;
 
-    await tester.pumpWidget(testApp(StorePreviewCard(store: store)));
+    await tester.pumpWidget(
+      testApp(StorePreviewCard(store: store, onViewDetails: () {})),
+    );
 
     expect(find.text('검수 데이터'), findsOneWidget);
     expect(find.text(store.name), findsOneWidget);
     expect(find.text(store.address), findsOneWidget);
     expect(find.text(store.burgerStyle), findsOneWidget);
+    expect(find.byKey(storePreviewDetailsButtonKey), findsOneWidget);
   });
 
   testWidgets('shows missing API key guidance', (tester) async {
@@ -151,7 +155,9 @@ void main() {
     final stores = loadStagingFixture();
     final store = stores.first;
 
-    await tester.pumpWidget(testApp(StorePreviewCard(store: store)));
+    await tester.pumpWidget(
+      testApp(StorePreviewCard(store: store, onViewDetails: () {})),
+    );
 
     expect(find.text(store.name), findsOneWidget);
     expect(find.text(store.address), findsOneWidget);
@@ -517,4 +523,57 @@ void main() {
     await tester.pump();
     expect(find.byKey(storeSearchFieldKey), findsOneWidget);
   });
+
+  testWidgets(
+    'detail navigation passes the same store and preserves map search state',
+    (tester) async {
+      var loadCalls = 0;
+      await pumpSearchableMap(
+        tester,
+        loader: () async {
+          loadCalls += 1;
+          return searchableStores;
+        },
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        storeCameraMover: (_) async {},
+      );
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey<String>('store-search-result-alpha')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(storePreviewDetailsButtonKey), findsOneWidget);
+      await tester.tap(find.byKey(storePreviewDetailsButtonKey));
+      await tester.pumpAndSettle();
+
+      final detailScreen = tester.widget<StoreDetailScreen>(
+        find.byType(StoreDetailScreen),
+      );
+      expect(identical(detailScreen.store, searchableStores.first), isTrue);
+      expect(find.text('Alpha Burger'), findsOneWidget);
+      expect(find.text('Seoul Yongsan Alpha-ro 1'), findsOneWidget);
+
+      await tester.tap(find.byKey(storeDetailBackButtonKey));
+      await tester.pumpAndSettle();
+
+      final searchField = tester.widget<TextField>(
+        find.byKey(storeSearchFieldKey),
+      );
+      expect(searchField.controller?.text, 'alpha');
+      expect(find.byType(StorePreviewCard), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(StorePreviewCard),
+          matching: find.text('Alpha Burger'),
+        ),
+        findsOneWidget,
+      );
+      expect(loadCalls, 1);
+    },
+  );
 }

@@ -11,6 +11,7 @@ import '../../stores/data/staging_store_locations_loader.dart';
 import '../../stores/data/supabase_store_locations_loader.dart';
 import '../../stores/domain/store_location.dart';
 import '../../stores/domain/store_search.dart';
+import '../../stores/presentation/store_detail_screen.dart';
 import 'store_preview_card.dart';
 
 typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
@@ -204,7 +205,10 @@ class _MapScreenState extends State<MapScreen> {
             left: 16,
             right: 16,
             bottom: 16,
-            child: StorePreviewCard(store: _selectedStore!),
+            child: StorePreviewCard(
+              store: _selectedStore!,
+              onViewDetails: () => _openStoreDetails(_selectedStore!),
+            ),
           ),
       ],
     );
@@ -319,6 +323,14 @@ class _MapScreenState extends State<MapScreen> {
     final controller = await _controller.future;
     await controller.animateCamera(
       CameraUpdate.newLatLngZoom(LatLng(store.latitude, store.longitude), 16),
+    );
+  }
+
+  Future<void> _openStoreDetails(StoreLocation store) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => StoreDetailScreen(store: store),
+      ),
     );
   }
 

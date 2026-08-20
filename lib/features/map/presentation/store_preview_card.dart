@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../stores/domain/store_location.dart';
 
+const storePreviewDetailsButtonKey = ValueKey<String>(
+  'store-preview-details-button',
+);
+
 class StorePreviewCard extends StatelessWidget {
-  const StorePreviewCard({super.key, required this.store});
+  const StorePreviewCard({
+    super.key,
+    required this.store,
+    required this.onViewDetails,
+  });
 
   final StoreLocation store;
+  final VoidCallback onViewDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +38,19 @@ class StorePreviewCard extends StatelessWidget {
             Text(store.address),
             const SizedBox(height: 4),
             Text(store.burgerStyle),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Tooltip(
+                message: '매장 상세보기',
+                child: TextButton.icon(
+                  key: storePreviewDetailsButtonKey,
+                  onPressed: onViewDetails,
+                  icon: const Icon(Icons.arrow_forward),
+                  label: const Text('상세보기'),
+                ),
+              ),
+            ),
           ],
         ),
       ),
