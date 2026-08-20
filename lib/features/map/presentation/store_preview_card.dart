@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../stores/domain/burger_style.dart';
 import '../../stores/domain/store_location.dart';
 
 const storePreviewDetailsButtonKey = ValueKey<String>(
@@ -37,7 +38,7 @@ class StorePreviewCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(store.address),
             const SizedBox(height: 4),
-            Text(store.burgerStyle),
+            Text(BurgerStyle.parse(store.burgerStyle).displayLabel),
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../domain/burger_style.dart';
 import '../domain/store_location.dart';
 
 const storeDetailBackButtonKey = ValueKey<String>('store-detail-back-button');
@@ -89,11 +90,7 @@ class StoreDetailScreen extends StatelessWidget {
 }
 
 String storeBurgerStyleLabel(String value) {
-  final normalizedValue = value.trim();
-  if (normalizedValue.isEmpty || normalizedValue == '미분류') {
-    return '아직 분류되지 않았습니다.';
-  }
-  return normalizedValue;
+  return BurgerStyle.parse(value).detailLabel;
 }
 
 String storeVerificationStatusLabel(String? status) {

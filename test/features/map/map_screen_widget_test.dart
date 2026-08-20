@@ -5,6 +5,7 @@ import 'package:burger_map_korea/core/config/app_config.dart';
 import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
 import 'package:burger_map_korea/features/stores/data/itaewon_store_locations.dart';
+import 'package:burger_map_korea/features/stores/domain/burger_style.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
 import 'package:burger_map_korea/features/stores/presentation/store_detail_screen.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +22,7 @@ void main() {
       address: 'Seoul Yongsan Alpha-ro 1',
       latitude: 37.53,
       longitude: 126.99,
-      burgerStyle: '미분류',
+      burgerStyle: 'smash',
       verificationStatus: 'verified',
     ),
     StoreLocation(
@@ -30,7 +31,7 @@ void main() {
       address: 'Seoul Itaewon Burger-gil 2',
       latitude: 37.54,
       longitude: 127.0,
-      burgerStyle: '미분류',
+      burgerStyle: 'classic',
       verificationStatus: 'verified',
     ),
     StoreLocation(
@@ -358,6 +359,8 @@ void main() {
         },
       );
 
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
+      await tester.pump();
       await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
       await tester.pump();
       expect(tester.testTextInput.isVisible, isTrue);
@@ -392,6 +395,8 @@ void main() {
         storeCameraMover: (_) async {},
       );
 
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
+      await tester.pump();
       await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
       await tester.pump();
       await tester.tap(
@@ -423,6 +428,8 @@ void main() {
     );
 
     await tester.enterText(find.byKey(storeSearchFieldKey), 'a');
+    await tester.pump();
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
     await tester.pump();
     await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
     await tester.pump();
@@ -540,6 +547,8 @@ void main() {
         storeCameraMover: (_) async {},
       );
 
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
+      await tester.pump();
       await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
       await tester.pump();
       await tester.tap(
@@ -565,6 +574,14 @@ void main() {
         find.byKey(storeSearchFieldKey),
       );
       expect(searchField.controller?.text, 'alpha');
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(burgerStyleFilterKey(BurgerStyle.smash)),
+            )
+            .selected,
+        isTrue,
+      );
       expect(find.byType(StorePreviewCard), findsOneWidget);
       expect(
         find.descendant(
@@ -576,4 +593,155 @@ void main() {
       expect(loadCalls, 1);
     },
   );
+
+  testWidgets('shows only loaded styles in fixed taxonomy order', (
+    tester,
+  ) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    final allChip = tester.widget<ChoiceChip>(
+      find.byKey(burgerStyleAllFilterKey),
+    );
+    expect(allChip.selected, isTrue);
+    expect(
+      find.byKey(burgerStyleFilterKey(BurgerStyle.classic)),
+      findsOneWidget,
+    );
+    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)), findsOneWidget);
+    expect(
+      find.byKey(burgerStyleFilterKey(BurgerStyle.unclassified)),
+      findsOneWidget,
+    );
+    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)), findsNothing);
+
+    final classicX = tester
+        .getTopLeft(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)))
+        .dx;
+    final smashX = tester
+        .getTopLeft(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)))
+        .dx;
+    final unclassifiedX = tester
+        .getTopLeft(find.byKey(burgerStyleFilterKey(BurgerStyle.unclassified)))
+        .dx;
+    expect(classicX, lessThan(smashX));
+    expect(smashX, lessThan(unclassifiedX));
+  });
+
+  testWidgets('combines style and text filters without resetting either', (
+    tester,
+  ) async {
+    var markerCount = 0;
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        markerCount = markers.length;
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
+    await tester.pump();
+    expect(markerCount, 1);
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'beta');
+    await tester.pump();
+    expect(markerCount, 0);
+    expect(find.text('검색 결과가 없습니다.'), findsOneWidget);
+
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)));
+    await tester.pump();
+    expect(markerCount, 1);
+    expect(find.text('Beta Kitchen'), findsOneWidget);
+
+    await tester.tap(find.byKey(storeSearchClearButtonKey));
+    await tester.pump();
+    expect(markerCount, 1);
+    expect(
+      tester
+          .widget<ChoiceChip>(
+            find.byKey(burgerStyleFilterKey(BurgerStyle.classic)),
+          )
+          .selected,
+      isTrue,
+    );
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'beta');
+    await tester.pump();
+    await tester.tap(find.byKey(burgerStyleAllFilterKey));
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(storeSearchFieldKey))
+          .controller
+          ?.text,
+      'beta',
+    );
+    expect(markerCount, 1);
+  });
+
+  testWidgets('style filter closes a selected card that no longer matches', (
+    tester,
+  ) async {
+    Set<Marker> markers = const <Marker>{};
+    var cameraMoveRequests = 0;
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (nextMarkers, onMapTap) {
+        markers = nextMarkers;
+        return const ColoredBox(color: Colors.white);
+      },
+      storeCameraMover: (_) async {
+        cameraMoveRequests += 1;
+      },
+    );
+
+    markers
+        .firstWhere((marker) => marker.markerId.value == 'alpha')
+        .onTap
+        ?.call();
+    await tester.pump();
+    expect(find.byType(StorePreviewCard), findsOneWidget);
+
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)));
+    await tester.pump();
+    expect(find.byType(StorePreviewCard), findsNothing);
+    expect(cameraMoveRequests, 0);
+  });
+
+  testWidgets('staging exposes only all and unclassified filters', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          config: const AppConfig(
+            environment: AppEnvironment.development,
+            googleMapsApiKey: 'test-key',
+            storeDataMode: StoreDataMode.staging,
+          ),
+          stagingStoreLoader: () async => loadStagingFixture(),
+          mapSurfaceBuilder: (markers, onMapTap) {
+            return const ColoredBox(color: Colors.white);
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(burgerStyleAllFilterKey), findsOneWidget);
+    expect(
+      find.byKey(burgerStyleFilterKey(BurgerStyle.unclassified)),
+      findsOneWidget,
+    );
+    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)), findsNothing);
+    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)), findsNothing);
+  });
 }

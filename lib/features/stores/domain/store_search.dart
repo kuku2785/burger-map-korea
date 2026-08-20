@@ -1,3 +1,4 @@
+import 'burger_style.dart';
 import 'store_location.dart';
 
 String normalizeStoreSearchText(String value) {
@@ -6,17 +7,24 @@ String normalizeStoreSearchText(String value) {
 
 List<StoreLocation> filterStoreLocations(
   List<StoreLocation> stores,
-  String query,
-) {
+  String query, {
+  BurgerStyle? burgerStyle,
+}) {
   final normalizedQuery = normalizeStoreSearchText(query);
-  if (normalizedQuery.isEmpty) {
+  if (normalizedQuery.isEmpty && burgerStyle == null) {
     return List<StoreLocation>.unmodifiable(stores);
   }
 
   return List<StoreLocation>.unmodifiable(
     stores.where((store) {
-      return normalizeStoreSearchText(store.name).contains(normalizedQuery) ||
+      final matchesQuery =
+          normalizedQuery.isEmpty ||
+          normalizeStoreSearchText(store.name).contains(normalizedQuery) ||
           normalizeStoreSearchText(store.address).contains(normalizedQuery);
+      final matchesBurgerStyle =
+          burgerStyle == null ||
+          BurgerStyle.parse(store.burgerStyle) == burgerStyle;
+      return matchesQuery && matchesBurgerStyle;
     }),
   );
 }

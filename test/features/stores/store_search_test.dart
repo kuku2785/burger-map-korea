@@ -1,3 +1,4 @@
+import 'package:burger_map_korea/features/stores/domain/burger_style.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
 import 'package:burger_map_korea/features/stores/domain/store_search.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,5 +41,36 @@ void main() {
 
   test('returns an empty list when no store matches', () {
     expect(filterStoreLocations(stores, 'not present'), isEmpty);
+  });
+
+  test('combines text and burger style filters with AND', () {
+    final mixedStores = [
+      stores.first,
+      StoreLocation(
+        id: 'smash',
+        name: 'Smash House',
+        address: 'Seoul Yongsan Alpha-ro 2',
+        latitude: 37.54,
+        longitude: 127.0,
+        burgerStyle: 'smash',
+      ),
+    ];
+
+    expect(
+      filterStoreLocations(
+        mixedStores,
+        'alpha-ro',
+        burgerStyle: BurgerStyle.smash,
+      ),
+      [mixedStores.last],
+    );
+    expect(
+      filterStoreLocations(
+        mixedStores,
+        'Alpha Burger',
+        burgerStyle: BurgerStyle.smash,
+      ),
+      isEmpty,
+    );
   });
 }

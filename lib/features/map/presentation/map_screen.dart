@@ -9,6 +9,7 @@ import '../../../core/config/app_config.dart';
 import '../../stores/data/itaewon_store_locations.dart';
 import '../../stores/data/staging_store_locations_loader.dart';
 import '../../stores/data/supabase_store_locations_loader.dart';
+import '../../stores/domain/burger_style.dart';
 import '../../stores/domain/store_location.dart';
 import '../../stores/domain/store_search.dart';
 import '../../stores/presentation/store_detail_screen.dart';
@@ -23,6 +24,11 @@ typedef StoreMapSurfaceBuilder =
 const storeSearchFieldKey = ValueKey<String>('store-search-field');
 const storeSearchClearButtonKey = ValueKey<String>('store-search-clear-button');
 const storeSearchResultsKey = ValueKey<String>('store-search-results');
+const burgerStyleAllFilterKey = ValueKey<String>('burger-style-filter-all');
+
+ValueKey<String> burgerStyleFilterKey(BurgerStyle style) {
+  return ValueKey<String>('burger-style-filter-${style.code}');
+}
 
 class MapScreen extends StatefulWidget {
   const MapScreen({
@@ -56,6 +62,7 @@ class _MapScreenState extends State<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   StoreLocation? _selectedStore;
+  BurgerStyle? _selectedBurgerStyle;
   String _searchQuery = '';
   bool _isMapReady = false;
   String _cameraStatus = '카메라 이동 대기 중';
@@ -139,7 +146,12 @@ class _MapScreenState extends State<MapScreen> {
       return MapErrorView(error: _mapError!);
     }
 
-    final visibleStores = filterStoreLocations(stores, _searchQuery);
+    final availableStyles = availableBurgerStyles(stores);
+    final visibleStores = filterStoreLocations(
+      stores,
+      _searchQuery,
+      burgerStyle: _selectedBurgerStyle,
+    );
     final markers = buildStoreMarkers(visibleStores, _selectStore);
     final mapSurfaceBuilder = widget.mapSurfaceBuilder;
 
@@ -186,11 +198,15 @@ class _MapScreenState extends State<MapScreen> {
                 focusNode: _searchFocusNode,
                 query: _searchQuery,
                 results: visibleStores,
+                availableStyles: availableStyles,
+                selectedBurgerStyle: _selectedBurgerStyle,
                 onChanged: _handleSearchChanged,
                 onClear: _clearSearch,
                 onSelected: _selectSearchResult,
+                onBurgerStyleSelected: _handleBurgerStyleChanged,
               ),
-              if (normalizeStoreSearchText(_searchQuery).isEmpty) ...[
+              if (normalizeStoreSearchText(_searchQuery).isEmpty &&
+                  _selectedBurgerStyle == null) ...[
                 const SizedBox(height: 8),
                 _CameraStatusCard(
                   status: _cameraStatus,
@@ -223,12 +239,7 @@ class _MapScreenState extends State<MapScreen> {
       if (!mounted) {
         return;
       }
-      final cameraPosition = cameraPositionForStores(stores);
-      setState(() {
-        _stores = stores;
-        _initialCameraPosition = cameraPosition;
-        _lastCameraPosition = cameraPosition;
-      });
+      _applyLoadedStores(stores);
     } on Object catch (error) {
       if (!mounted) {
         return;
@@ -257,12 +268,7 @@ class _MapScreenState extends State<MapScreen> {
       if (!mounted) {
         return;
       }
-      final cameraPosition = cameraPositionForStores(stores);
-      setState(() {
-        _stores = stores;
-        _initialCameraPosition = cameraPosition;
-        _lastCameraPosition = cameraPosition;
-      });
+      _applyLoadedStores(stores);
     } on Object {
       if (!mounted) {
         return;
@@ -290,10 +296,28 @@ class _MapScreenState extends State<MapScreen> {
     final visibleStoreIds = filterStoreLocations(
       stores,
       query,
+      burgerStyle: _selectedBurgerStyle,
     ).map((store) => store.id).toSet();
 
     setState(() {
       _searchQuery = query;
+      if (_selectedStore != null &&
+          !visibleStoreIds.contains(_selectedStore!.id)) {
+        _selectedStore = null;
+      }
+    });
+  }
+
+  void _handleBurgerStyleChanged(BurgerStyle? burgerStyle) {
+    final stores = _stores ?? const <StoreLocation>[];
+    final visibleStoreIds = filterStoreLocations(
+      stores,
+      _searchQuery,
+      burgerStyle: burgerStyle,
+    ).map((store) => store.id).toSet();
+
+    setState(() {
+      _selectedBurgerStyle = burgerStyle;
       if (_selectedStore != null &&
           !visibleStoreIds.contains(_selectedStore!.id)) {
         _selectedStore = null;
@@ -334,6 +358,19 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  void _applyLoadedStores(List<StoreLocation> stores) {
+    final cameraPosition = cameraPositionForStores(stores);
+    setState(() {
+      _stores = stores;
+      _selectedBurgerStyle = validBurgerStyleSelection(
+        _selectedBurgerStyle,
+        stores,
+      );
+      _initialCameraPosition = cameraPosition;
+      _lastCameraPosition = cameraPosition;
+    });
+  }
+
   void _handleMapCreated(GoogleMapController controller) {
     if (!_controller.isCompleted) {
       _controller.complete(controller);
@@ -352,22 +389,29 @@ class _StoreSearchPanel extends StatelessWidget {
     required this.focusNode,
     required this.query,
     required this.results,
+    required this.availableStyles,
+    required this.selectedBurgerStyle,
     required this.onChanged,
     required this.onClear,
     required this.onSelected,
+    required this.onBurgerStyleSelected,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final String query;
   final List<StoreLocation> results;
+  final List<BurgerStyle> availableStyles;
+  final BurgerStyle? selectedBurgerStyle;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   final ValueChanged<StoreLocation> onSelected;
+  final ValueChanged<BurgerStyle?> onBurgerStyleSelected;
 
   @override
   Widget build(BuildContext context) {
     final hasQuery = normalizeStoreSearchText(query).isNotEmpty;
+    final hasActiveCriteria = hasQuery || selectedBurgerStyle != null;
     final maximumResultsHeight = math.min(
       220.0,
       math.max(96.0, MediaQuery.sizeOf(context).height * 0.28),
@@ -404,7 +448,42 @@ class _StoreSearchPanel extends StatelessWidget {
             ),
           ),
         ),
-        if (hasQuery) ...[
+        const SizedBox(height: 8),
+        Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          clipBehavior: Clip.antiAlias,
+          color: Theme.of(context).colorScheme.surface,
+          child: SizedBox(
+            height: 52,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              itemCount: availableStyles.length + 1,
+              separatorBuilder: (context, index) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final style = index == 0 ? null : availableStyles[index - 1];
+                final label = style?.displayLabel ?? '전체';
+                final isSelected = style == selectedBurgerStyle;
+
+                return Semantics(
+                  button: true,
+                  selected: isSelected,
+                  label: '버거 스타일 $label 필터',
+                  child: ChoiceChip(
+                    key: style == null
+                        ? burgerStyleAllFilterKey
+                        : burgerStyleFilterKey(style),
+                    label: Text(label),
+                    selected: isSelected,
+                    onSelected: (_) => onBurgerStyleSelected(style),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        if (hasActiveCriteria) ...[
           const SizedBox(height: 8),
           Material(
             key: storeSearchResultsKey,
@@ -540,7 +619,10 @@ class MissingApiKeyView extends StatelessWidget {
                 return ListTile(
                   leading: const Icon(Icons.lunch_dining_outlined),
                   title: Text(store.name),
-                  subtitle: Text('${store.address}\n${store.burgerStyle}'),
+                  subtitle: Text(
+                    '${store.address}\n'
+                    '${BurgerStyle.parse(store.burgerStyle).displayLabel}',
+                  ),
                   isThreeLine: true,
                 );
               },

@@ -39,7 +39,8 @@ void main() {
 
     expect(find.text(selectedStore.name), findsOneWidget);
     expect(find.text(selectedStore.address), findsOneWidget);
-    expect(find.text(selectedStore.burgerStyle), findsOneWidget);
+    expect(find.text('스매시'), findsOneWidget);
+    expect(find.text(selectedStore.burgerStyle), findsNothing);
     expect(find.text('검수 완료'), findsOneWidget);
     expect(find.text(selectedStore.id), findsNothing);
     expect(find.text('verified'), findsNothing);
@@ -61,7 +62,7 @@ void main() {
   test('uses a natural label for unavailable burger style', () {
     expect(storeBurgerStyleLabel(''), '아직 분류되지 않았습니다.');
     expect(storeBurgerStyleLabel('미분류'), '아직 분류되지 않았습니다.');
-    expect(storeBurgerStyleLabel('  스매시버거  '), '스매시버거');
+    expect(storeBurgerStyleLabel('  스매시버거  '), '스매시');
   });
 
   testWidgets('copies the address and shows a success message', (tester) async {
