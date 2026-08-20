@@ -78,15 +78,27 @@ class FlutterSupabaseSecurityTest(unittest.TestCase):
             normalized_main,
         )
         normalized_config = re.sub(r"\s+", " ", self.config)
-        self.assertRegex(
+        self.assertIn("RuntimePolicy resolveRuntimePolicy", self.config)
+        self.assertIn("if (isReleaseMode)", self.config)
+        self.assertIn("environment: AppEnvironment.production", self.config)
+        self.assertIn("storeDataMode: StoreDataMode.supabase", self.config)
+        self.assertIn(
+            "usesSupabaseStoreData => effectiveStoreDataMode == StoreDataMode.supabase",
             normalized_config,
-            r"usesSupabaseStoreData\s*=>\s*!kReleaseMode\s*&&.*?"
-            r"environment\s*==\s*AppEnvironment\.development\s*&&.*?"
-            r"storeDataMode\s*==\s*StoreDataMode\.supabase",
         )
+        self.assertIn("isReleaseMode: kReleaseMode", self.config)
         self.assertIn("Supabase.initialize(", self.loader)
         self.assertIn("publishableKey: publishableKey.trim()", self.loader)
         self.assertNotIn("anonKey:", self.loader)
+
+    def test_production_config_rejects_privileged_keys_and_rest_paths(self) -> None:
+        self.assertIn("urlHasRestPath('url_has_rest_path')", self.config)
+        self.assertIn(
+            "disallowedPrivilegedKey('disallowed_privileged_key')",
+            self.config,
+        )
+        self.assertIn("normalized.startsWith('sb_secret_')", self.config)
+        self.assertIn("normalized.contains('service_role')", self.config)
 
     def test_debug_diagnostics_do_not_print_sensitive_values(self) -> None:
         self.assertIn("enableDebugDiagnostics && kDebugMode", self.loader)

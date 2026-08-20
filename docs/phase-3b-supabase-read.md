@@ -14,9 +14,9 @@ Phase 3B는 Flutter development 환경에서 Supabase `stores` 테이블의 공�
 
 - `pilot`: 기본값. 기존 이태원 파일럿 데이터를 사용한다.
 - `staging`: development에서만 로컬 24개 staging asset을 사용한다.
-- `supabase`: development에서만 Supabase 공개 데이터를 조회한다.
+- `supabase`: development에서 Supabase 공개 데이터를 조회한다.
 
-production 환경 또는 release 빌드에서 `STORE_DATA_MODE=supabase`를 요청하면 기존 안전 정책에 따라 `pilot`으로 돌아간다. Supabase 모드를 production 기본값으로 사용하지 않는다.
+Phase 5B부터 production과 release는 Supabase 공개 데이터만 사용한다. `STORE_DATA_MODE=pilot` 또는 `staging`이 전달돼도 Supabase로 강제되며 로컬 데이터로 fallback하지 않는다. release에서는 `APP_ENV` 요청값도 무시하고 effective environment를 production으로 고정한다.
 
 ## 공개 설정
 
@@ -55,7 +55,7 @@ RLS가 같은 공개 조건을 강제한다. INSERT, UPDATE, DELETE, UPSERT, RPC
 
 ## 화면 상태
 
-- 설정 누락: 누락된 환경변수 이름만 표시한다.
+- 설정 누락·오류: `서비스 설정을 확인할 수 없습니다.`만 표시하고 기술적인 변수명과 값을 숨긴다.
 - 조회 중: 로딩 표시를 유지한다.
 - 0행: `현재 공개된 매장이 없습니다.`를 표시하고 pilot/staging으로 대체하지 않는다.
 - 오류: URL, key, 서버 응답 원문을 숨기고 일반 오류와 재시도 버튼을 표시한다.
@@ -89,7 +89,7 @@ Google Maps 키가 Gradle property 등 기존 로컬 설정으로 주입된다�
 
 ## 안전한 오류 진단
 
-development debug 빌드에서만 Supabase 로더의 실패 단계와 안전한 오류 코드가 출력된다. URL, 키, 요청 헤더, 서버 응답 원문은 출력하지 않는다. production/release에서는 진단 로그가 비활성화된다.
+development debug 빌드에서만 Supabase 로더의 실패 단계와 안전한 오류 코드가 출력된다. URL, 키, 요청 헤더, 서버 응답 원문은 출력하지 않는다. production/release에서는 진단 로그가 비활성화된다. URL은 HTTPS base URL만 허용하며 `/rest/v1`, query, fragment, userinfo 또는 임의 경로가 있으면 초기화 전에 차단한다.
 
 ## Phase 3C 게시 후 재검증
 

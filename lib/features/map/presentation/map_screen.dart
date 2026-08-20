@@ -76,6 +76,17 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _mapError = widget.initialMapError;
+    _initializeStores();
+  }
+
+  void _initializeStores() {
+    if (kReleaseMode) {
+      if (widget.config.hasSupabaseConfiguration) {
+        _loadSupabaseStores();
+      }
+      return;
+    }
+
     switch (widget.config.effectiveStoreDataMode) {
       case StoreDataMode.pilot:
         _stores = itaewonStoreLocations;
@@ -100,17 +111,19 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('버거맵 코리아'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(
-              child: Chip(
-                label: Text('기술 검증 · ${widget.config.environmentLabel}'),
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          ),
-        ],
+        actions: widget.config.showsDevelopmentDiagnostics
+            ? [
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Center(
+                    child: Chip(
+                      label: Text('기술 검증 · ${widget.config.environmentLabel}'),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+              ]
+            : null,
       ),
       body: _buildBody(context),
     );
@@ -119,14 +132,17 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildBody(BuildContext context) {
     if (widget.config.usesSupabaseStoreData &&
         !widget.config.hasSupabaseConfiguration) {
-      return MissingSupabaseConfigView(config: widget.config);
+      return const MissingSupabaseConfigView();
     }
 
     if (_storeLoadError != null) {
       if (widget.config.usesSupabaseStoreData) {
         return StoreDataErrorView(onRetry: _loadSupabaseStores);
       }
-      return MapErrorView(error: _storeLoadError!);
+      return MapErrorView(
+        error: _storeLoadError!,
+        showDiagnostics: widget.config.showsDevelopmentDiagnostics,
+      );
     }
 
     final stores = _stores;
@@ -143,7 +159,10 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     if (_mapError != null) {
-      return MapErrorView(error: _mapError!);
+      return MapErrorView(
+        error: _mapError!,
+        showDiagnostics: widget.config.showsDevelopmentDiagnostics,
+      );
     }
 
     final availableStyles = availableBurgerStyles(stores);
@@ -205,7 +224,8 @@ class _MapScreenState extends State<MapScreen> {
                 onSelected: _selectSearchResult,
                 onBurgerStyleSelected: _handleBurgerStyleChanged,
               ),
-              if (normalizeStoreSearchText(_searchQuery).isEmpty &&
+              if (widget.config.showsDevelopmentDiagnostics &&
+                  normalizeStoreSearchText(_searchQuery).isEmpty &&
                   _selectedBurgerStyle == null) ...[
                 const SizedBox(height: 8),
                 _CameraStatusCard(
@@ -644,17 +664,10 @@ class StoreDataLoadingView extends StatelessWidget {
 }
 
 class MissingSupabaseConfigView extends StatelessWidget {
-  const MissingSupabaseConfigView({super.key, required this.config});
-
-  final AppConfig config;
+  const MissingSupabaseConfigView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final missingVariables = <String>[
-      if (!config.hasSupabaseUrl) 'SUPABASE_URL',
-      if (!config.hasSupabasePublishableKey) 'SUPABASE_PUBLISHABLE_KEY',
-    ];
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -668,13 +681,8 @@ class MissingSupabaseConfigView extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Supabase 공개 설정이 필요합니다.',
+              '서비스 설정을 확인할 수 없습니다.',
               style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '누락된 설정: ${missingVariables.join(', ')}',
               textAlign: TextAlign.center,
             ),
           ],
@@ -763,16 +771,23 @@ class _MapLoadingOverlay extends StatelessWidget {
 }
 
 class MapErrorView extends StatelessWidget {
-  const MapErrorView({super.key, required this.error});
+  const MapErrorView({
+    super.key,
+    required this.error,
+    this.showDiagnostics = false,
+  });
 
   final Object error;
+  final bool showDiagnostics;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text('지도를 불러오지 못했습니다.\n$error'),
+        child: Text(
+          showDiagnostics ? '지도를 불러오지 못했습니다.\n$error' : '지도를 불러오지 못했습니다.',
+        ),
       ),
     );
   }

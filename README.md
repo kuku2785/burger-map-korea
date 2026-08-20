@@ -48,6 +48,12 @@ GOOGLE_MAPS_API_KEY=your-google-maps-api-key
 
 API 키가 없으면 Google Maps 위젯을 생성하지 않고 안내 화면을 표시합니다.
 
+## Production runtime
+
+현재 debug 기본값은 `development/pilot`이며 development에서는 pilot, staging, Supabase를 선택할 수 있습니다. `APP_ENV=production` 또는 release 빌드는 요청된 `STORE_DATA_MODE`와 무관하게 Supabase만 사용합니다. Supabase 설정이 없거나 잘못되면 pilot/staging으로 대체하지 않고 일반 설정 오류를 표시합니다.
+
+개발용 staging JSON은 Android debug APK에만 포함되고 Git에서 제외됩니다. 실제 배포 대상 release AAB에는 staging 파일, AssetManifest 참조, staging 매장 식별 값이 포함되지 않도록 검증합니다. 환경 결정표, 안전한 실행 명령, bundle 검사 방법은 `docs/phase-5b-production-runtime.md`를 확인합니다.
+
 ## Google Cloud 설정
 
 1. Google Cloud Console에서 프로젝트를 생성합니다.

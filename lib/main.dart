@@ -8,12 +8,13 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   final config = AppConfig.fromDartDefines();
+  logDevelopmentConfigurationDiagnostics(config);
   final supabaseLoader =
       config.usesSupabaseStoreData && config.hasSupabaseConfiguration
       ? SupabaseStoreLocationsLoader(
-          url: config.supabaseUrl,
-          publishableKey: config.supabasePublishableKey,
-          enableDebugDiagnostics: true,
+          url: config.normalizedSupabaseUrl,
+          publishableKey: config.normalizedSupabasePublishableKey,
+          enableDebugDiagnostics: config.showsDevelopmentDiagnostics,
         )
       : null;
 

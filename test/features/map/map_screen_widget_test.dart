@@ -121,10 +121,19 @@ void main() {
   });
 
   testWidgets('shows map error guidance', (tester) async {
-    await tester.pumpWidget(testApp(const MapErrorView(error: 'boom')));
+    await tester.pumpWidget(
+      testApp(const MapErrorView(error: 'boom', showDiagnostics: true)),
+    );
 
     expect(find.textContaining('지도를 불러오지 못했습니다.'), findsOneWidget);
     expect(find.textContaining('boom'), findsOneWidget);
+  });
+
+  testWidgets('production map errors hide diagnostic details', (tester) async {
+    await tester.pumpWidget(testApp(const MapErrorView(error: 'private')));
+
+    expect(find.text('지도를 불러오지 못했습니다.'), findsOneWidget);
+    expect(find.textContaining('private'), findsNothing);
   });
 
   testWidgets('shows staging JSON errors without building the map', (
@@ -190,7 +199,8 @@ void main() {
     );
 
     expect(find.byType(MissingSupabaseConfigView), findsOneWidget);
-    expect(find.textContaining('SUPABASE_URL'), findsOneWidget);
+    expect(find.text('서비스 설정을 확인할 수 없습니다.'), findsOneWidget);
+    expect(find.textContaining('SUPABASE_URL'), findsNothing);
     expect(loadCalls, 0);
   });
 
@@ -209,7 +219,108 @@ void main() {
     );
 
     expect(find.byType(MissingSupabaseConfigView), findsOneWidget);
-    expect(find.textContaining('SUPABASE_PUBLISHABLE_KEY'), findsOneWidget);
+    expect(find.text('서비스 설정을 확인할 수 없습니다.'), findsOneWidget);
+    expect(find.textContaining('SUPABASE_PUBLISHABLE_KEY'), findsNothing);
+  });
+
+  testWidgets(
+    'production configuration errors never load pilot or staging data',
+    (tester) async {
+      var stagingLoadCalls = 0;
+      var supabaseLoadCalls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MapScreen(
+            config: const AppConfig(
+              environment: AppEnvironment.production,
+              googleMapsApiKey: 'test-key',
+              storeDataMode: StoreDataMode.staging,
+            ),
+            stagingStoreLoader: () async {
+              stagingLoadCalls += 1;
+              return loadStagingFixture();
+            },
+            supabaseStoreLoader: () async {
+              supabaseLoadCalls += 1;
+              return searchableStores;
+            },
+          ),
+        ),
+      );
+
+      expect(find.byType(MissingSupabaseConfigView), findsOneWidget);
+      expect(find.text('서비스 설정을 확인할 수 없습니다.'), findsOneWidget);
+      expect(find.text(itaewonStoreLocations.first.name), findsNothing);
+      expect(find.text(loadStagingFixture().first.name), findsNothing);
+      expect(stagingLoadCalls, 0);
+      expect(supabaseLoadCalls, 0);
+      expect(find.textContaining('기술 검증'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'production overrides pilot request and loads only Supabase data',
+    (tester) async {
+      var stagingLoadCalls = 0;
+      var supabaseLoadCalls = 0;
+      var markerCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MapScreen(
+            config: const AppConfig(
+              environment: AppEnvironment.production,
+              googleMapsApiKey: 'test-key',
+              storeDataMode: StoreDataMode.pilot,
+              supabaseUrl: 'https://unit.invalid',
+              supabasePublishableKey: 'public-test-value',
+            ),
+            stagingStoreLoader: () async {
+              stagingLoadCalls += 1;
+              return loadStagingFixture();
+            },
+            supabaseStoreLoader: () async {
+              supabaseLoadCalls += 1;
+              return searchableStores;
+            },
+            mapSurfaceBuilder: (markers, onMapTap) {
+              markerCount = markers.length;
+              return const ColoredBox(color: Colors.white);
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(markerCount, searchableStores.length);
+      expect(supabaseLoadCalls, 1);
+      expect(stagingLoadCalls, 0);
+      expect(find.text(itaewonStoreLocations.first.name), findsNothing);
+      expect(find.textContaining('기술 검증'), findsNothing);
+      expect(find.textContaining('debug center:'), findsNothing);
+      expect(find.text('카메라 이동 대기 중'), findsNothing);
+    },
+  );
+
+  testWidgets('development keeps its badge and camera diagnostics', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          config: const AppConfig(
+            environment: AppEnvironment.development,
+            googleMapsApiKey: 'test-key',
+          ),
+          mapSurfaceBuilder: (markers, onMapTap) {
+            return const ColoredBox(color: Colors.white);
+          },
+        ),
+      ),
+    );
+
+    expect(find.text('기술 검증 · Development'), findsOneWidget);
+    expect(find.text('카메라 이동 대기 중'), findsOneWidget);
+    expect(find.textContaining('debug center:'), findsOneWidget);
   });
 
   testWidgets('shows loading while Supabase rows are pending', (tester) async {
