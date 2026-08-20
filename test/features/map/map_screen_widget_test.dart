@@ -162,7 +162,10 @@ void main() {
 
     expect(find.text(store.name), findsOneWidget);
     expect(find.text(store.address), findsOneWidget);
-    expect(find.text('미분류'), findsOneWidget);
+    expect(
+      find.text(BurgerStyle.parse(store.burgerStyle).displayLabel),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows missing Supabase URL without starting a load', (
@@ -716,7 +719,7 @@ void main() {
     expect(cameraMoveRequests, 0);
   });
 
-  testWidgets('staging exposes only all and unclassified filters', (
+  testWidgets('staging exposes approved styles in taxonomy order', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -738,10 +741,22 @@ void main() {
 
     expect(find.byKey(burgerStyleAllFilterKey), findsOneWidget);
     expect(
+      find.byKey(burgerStyleFilterKey(BurgerStyle.classic)),
+      findsOneWidget,
+    );
+    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)), findsOneWidget);
+    expect(
+      find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+      findsOneWidget,
+    );
+    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.other)), findsOneWidget);
+    expect(
       find.byKey(burgerStyleFilterKey(BurgerStyle.unclassified)),
       findsOneWidget,
     );
-    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)), findsNothing);
-    expect(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)), findsNothing);
+    expect(
+      find.byKey(burgerStyleFilterKey(BurgerStyle.plantBased)),
+      findsNothing,
+    );
   });
 }

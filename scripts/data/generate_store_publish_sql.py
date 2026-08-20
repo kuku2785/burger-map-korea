@@ -28,6 +28,10 @@ from store_publishing_common import (  # noqa: E402
     parse_store_schema,
     read_csv_rows,
 )
+from build_burger_style_review import (  # noqa: E402
+    ALLOWED_STYLES,
+    read_validated_style_review_rows,
+)
 
 
 PROJECT_ROOT = SCRIPT_DIR.parents[1]
@@ -207,6 +211,59 @@ def _validate_review_rows(
     return eligible
 
 
+def _apply_style_review(
+    rows: Sequence[Mapping[str, str]],
+    style_review_rows: Sequence[Mapping[str, str]],
+) -> list[dict[str, str]]:
+    style_by_candidate: dict[str, Mapping[str, str]] = {}
+    for style_row in style_review_rows:
+        candidate_id = style_row.get("candidateId", "").strip()
+        if not candidate_id or candidate_id in style_by_candidate:
+            raise StorePublishingError(
+                f"스타일 검수표 candidateId가 비었거나 중복됐습니다: {candidate_id}"
+            )
+        style_by_candidate[candidate_id] = style_row
+
+    review_ids = {row.get("candidateId", "").strip() for row in rows}
+    if review_ids != set(style_by_candidate):
+        raise StorePublishingError("게시 검수표와 스타일 검수표 candidateId 집합이 다릅니다.")
+
+    output: list[dict[str, str]] = []
+    for raw_row in rows:
+        row = dict(raw_row)
+        candidate_id = row.get("candidateId", "").strip()
+        style_row = style_by_candidate[candidate_id]
+        try:
+            style_store_id = str(uuid.UUID(style_row.get("storeId", "").strip()))
+            publish_store_id = str(uuid.UUID(row.get("storeId", "").strip()))
+        except ValueError:
+            raise StorePublishingError(
+                f"style-review 연결 storeId가 UUID가 아닙니다: {candidate_id}"
+            ) from None
+        mismatched = (["storeId"] if style_store_id != publish_store_id else []) + [
+            field
+            for field in ("name", "address")
+            if normalize_store_text(style_row.get(field, ""))
+            != normalize_store_text(row.get(field, ""))
+        ]
+        if mismatched:
+            raise StorePublishingError(
+                f"게시 검수표와 스타일 검수표가 다릅니다: "
+                f"{candidate_id}, {mismatched}"
+            )
+        if style_row.get("reviewStatus", "").strip() == "approved":
+            style = style_row.get("proposedBurgerStyle", "").strip()
+            if style not in ALLOWED_STYLES or style == "unclassified":
+                raise StorePublishingError(
+                    f"승인 스타일이 올바르지 않습니다: {candidate_id}, {style}"
+                )
+            row["burgerStyle"] = style
+        else:
+            row["burgerStyle"] = "unclassified"
+        output.append(row)
+    return output
+
+
 def _distance_meters(
     latitude_a: float,
     longitude_a: float,
@@ -275,12 +332,16 @@ def generate_publish_sql(
     review_path: Path,
     migration_path: Path,
     output_path: Path,
+    style_review_path: Path | None = None,
 ) -> int:
     if output_path.exists():
         raise StorePublishingError(f"출력 SQL이 이미 존재합니다: {output_path}")
     headers, rows = read_csv_rows(review_path, set(REVIEW_HEADERS))
     if headers != list(REVIEW_HEADERS):
         raise StorePublishingError("게시 검수표 컬럼 또는 순서가 다릅니다.")
+    if style_review_path is not None:
+        style_review_rows = read_validated_style_review_rows(style_review_path)
+        rows = _apply_style_review(rows, style_review_rows)
     schema = parse_store_schema(migration_path)
     eligible = _validate_review_rows(
         rows,
@@ -303,6 +364,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--review", type=Path, default=DEFAULT_REVIEW_PATH)
     parser.add_argument("--migration", type=Path, default=DEFAULT_MIGRATION_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument("--style-review", type=Path)
     return parser.parse_args(argv)
 
 
@@ -313,6 +375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.review,
             args.migration,
             args.output,
+            args.style_review,
         )
         print(
             json.dumps(

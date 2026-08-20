@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:burger_map_korea/features/stores/data/staging_store_locations_loader.dart';
+import 'package:burger_map_korea/features/stores/domain/burger_style.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -38,6 +39,18 @@ void main() {
       ),
       isTrue,
     );
+    final counts = <BurgerStyle, int>{};
+    for (final store in stores) {
+      final style = BurgerStyle.parse(store.burgerStyle);
+      counts[style] = (counts[style] ?? 0) + 1;
+    }
+    expect(counts, {
+      BurgerStyle.classic: 14,
+      BurgerStyle.smash: 1,
+      BurgerStyle.chicken: 2,
+      BurgerStyle.other: 3,
+      BurgerStyle.unclassified: 4,
+    });
   });
 
   test('rejects malformed staging JSON', () {

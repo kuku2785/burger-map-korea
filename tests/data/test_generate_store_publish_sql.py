@@ -10,6 +10,9 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+TEST_DIR = Path(__file__).resolve().parent
+if str(TEST_DIR) not in sys.path:
+    sys.path.insert(0, str(TEST_DIR))
 SCRIPT_PATH = PROJECT_ROOT / "scripts" / "data" / "generate_store_publish_sql.py"
 FIXTURE_PATH = (
     PROJECT_ROOT / "tests" / "fixtures" / "virtual_store_publish_review.csv"
@@ -25,6 +28,9 @@ sql_generator = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = sql_generator
 spec.loader.exec_module(sql_generator)
 
+from build_burger_style_review import STYLE_REVIEW_HEADERS
+from style_review_test_utils import make_style_review_rows, write_style_review
+
 
 class StorePublishSqlGeneratorTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -33,6 +39,7 @@ class StorePublishSqlGeneratorTest(unittest.TestCase):
         self.temp_path = Path(self.temporary_directory.name)
         self.review_path = self.temp_path / "review.csv"
         self.output_path = self.temp_path / "publish.sql"
+        self.style_path = self.temp_path / "style-review.csv"
         shutil.copyfile(FIXTURE_PATH, self.review_path)
 
     @staticmethod
@@ -53,12 +60,28 @@ class StorePublishSqlGeneratorTest(unittest.TestCase):
         rows[row_index].update(values)
         self.write_rows(self.review_path, headers, rows)
 
-    def generate(self) -> int:
+    def generate(self, style_review_path: Path | None = None) -> int:
         return sql_generator.generate_publish_sql(
             self.review_path,
             MIGRATION_PATH,
             self.output_path,
+            style_review_path,
         )
+
+    def write_style_rows(
+        self,
+        styles: dict[int, str],
+        *,
+        approved_numbers: set[int] | None = None,
+    ):
+        _, publish_rows = self.read_rows(self.review_path)
+        style_rows = make_style_review_rows(
+            publish_rows,
+            styles,
+            approved_numbers=approved_numbers,
+        )
+        write_style_review(self.style_path, STYLE_REVIEW_HEADERS, style_rows)
+        return style_rows
 
     def test_generates_transaction_for_verified_active_rows_only(self) -> None:
         count = self.generate()
@@ -131,6 +154,40 @@ class StorePublishSqlGeneratorTest(unittest.TestCase):
             "중복 매장 의심",
         ):
             self.generate()
+
+    def test_optional_style_review_applies_only_approved_style(self) -> None:
+        self.write_style_rows(
+            {1: "classic", 2: "chicken"},
+            approved_numbers={1, 2},
+        )
+
+        count = self.generate(self.style_path)
+        sql = self.output_path.read_text(encoding="utf-8")
+
+        self.assertEqual(count, 1)
+        self.assertIn("'classic'", sql)
+        self.assertNotIn("'chicken'", sql)
+        self.assertNotIn("Pending Burger", sql)
+        self.assertNotIn("evidenceUrl", sql)
+
+    def test_optional_style_review_keeps_unapproved_style_unclassified(self) -> None:
+        self.write_style_rows({2: "chicken"}, approved_numbers={2})
+
+        self.generate(self.style_path)
+        sql = self.output_path.read_text(encoding="utf-8")
+
+        self.assertIn("'unclassified'", sql)
+        self.assertNotIn("'chicken'", sql)
+
+    def test_optional_style_review_rejects_identity_mismatch(self) -> None:
+        style_rows = self.write_style_rows({1: "classic"}, approved_numbers={1})
+        style_rows[0]["address"] = "서울 용산구 다른로 99"
+        write_style_review(self.style_path, STYLE_REVIEW_HEADERS, style_rows)
+
+        with self.assertRaises(sql_generator.StorePublishingError):
+            self.generate(self.style_path)
+
+        self.assertFalse(self.output_path.exists())
 
 
 if __name__ == "__main__":

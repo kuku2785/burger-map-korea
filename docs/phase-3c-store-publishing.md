@@ -81,6 +81,8 @@ C:\Users\jeong\AppData\Local\Programs\Python\Python312\python.exe scripts\data\g
 
 생성기는 migration에서 `stores` 컬럼, `verification_status`, `source_type` 허용값을 읽는다. 전체 검수표의 UUID, 상태, 활성값, 필수값, 좌표, 중복 의심을 먼저 검사한 뒤 `publishDecision=verified`이고 `isActive=true`인 행만 명시적 컬럼 INSERT로 만든다.
 
+버거 스타일 검수가 끝난 뒤 새 게시 SQL을 생성할 때는 `--style-review data/review/yongsan_burger_style_review.csv`를 선택적으로 전달할 수 있다. `approved` 스타일만 `burger_style`에 사용하며 다른 스타일은 `unclassified`로 둔다. 이 결합은 게시 검수표의 `publishDecision`과 `isActive`를 변경하거나 pending 매장을 INSERT 대상으로 추가하지 않는다.
+
 `sourceAsOf`, 시간대가 있는 `verifiedAt`, `verificationNote` 중 하나라도 없으면 중단한다. 승인 대상이 0개이면 `data/staging/yongsan_burger_store_publish.sql`을 만들지 않고 종료 코드 3으로 안전 중단한다. 출력 SQL은 Git에서 제외되며 `begin`/`commit` transaction을 사용한다.
 
 ## URL과 REST 경로
@@ -147,6 +149,10 @@ Flutter를 development + supabase 모드로 실행해 Google 지도, Supabase �
 - Flutter 지도에서 마커가 사라짐
 
 공개 Flutter 클라이언트에는 INSERT, UPDATE, DELETE, UPSERT, RPC 또는 관리자 키를 추가하지 않는다.
+
+Phase 4C-B2에서 현재 게시된 매장의 스타일만 반영하기 위한 오프라인 UPDATE SQL 생성기를 추가했다. 스타일 검수표의 `approved`와 게시 검수표의 `verified + active`가 UUID·candidateId·이름·주소까지 일치할 때만 `burger_style`을 갱신한다. 생성 SQL은 사용자가 내용을 검토한 뒤 SQL Editor에서 수동 적용하기 전까지 원격 상태에 영향을 주지 않는다.
+
+2026-08-20 사용자가 생성 SQL을 개발용 SQL Editor에서 정확히 한 번 실행했다. 대상은 기존에 게시된 노머시버거 1행뿐이었고 `burger_style`만 `classic`으로 변경했다. `verification_status=verified`, `is_active=true`와 RLS는 유지됐으며 INSERT, DELETE, UPSERT, 다른 매장 변경은 없었다. development + supabase 모드에서 `전체·클래식` 필터와 상세 화면의 `클래식·검수 완료` 표시를 확인했다. 이미 적용된 SQL은 재실행하지 않는다.
 
 ## 연결 설정 주의사항
 
