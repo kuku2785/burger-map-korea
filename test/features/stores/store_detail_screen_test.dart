@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:burger_map_korea/app/app_theme.dart';
+import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
 import 'package:burger_map_korea/features/stores/presentation/store_detail_screen.dart';
 import 'package:flutter/material.dart';
@@ -24,10 +27,27 @@ void main() {
     );
   }
 
-  Widget detailApp(StoreLocation store) {
+  Widget detailApp(
+    StoreLocation store, {
+    ExternalUriLauncher? externalUriLauncher,
+    double textScale = 1,
+  }) {
     return MaterialApp(
       theme: AppTheme.light,
-      home: StoreDetailScreen(store: store),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        );
+      },
+      home: externalUriLauncher == null
+          ? StoreDetailScreen(store: store)
+          : StoreDetailScreen(
+              store: store,
+              externalUriLauncher: externalUriLauncher,
+            ),
     );
   }
 
@@ -93,6 +113,89 @@ void main() {
     expect(find.text('주소를 복사했습니다.'), findsOneWidget);
   });
 
+  testWidgets(
+    'launches the same named destination on the first three completed taps',
+    (tester) async {
+      final launcher = _FakeExternalUriLauncher();
+      final selectedStore = store();
+      await tester.pumpWidget(
+        detailApp(selectedStore, externalUriLauncher: launcher),
+      );
+
+      expect(find.byKey(storeDirectionsButtonKey), findsOneWidget);
+      for (var expectedCalls = 1; expectedCalls <= 3; expectedCalls += 1) {
+        await tester.tap(find.byKey(storeDirectionsButtonKey));
+        await tester.pumpAndSettle();
+        expect(launcher.callCount, expectedCalls);
+      }
+
+      expect(launcher.launchedUris, hasLength(3));
+      expect(
+        launcher.launchedUris.map((uri) => uri.queryParameters['destination']),
+        everyElement('${selectedStore.name}, ${selectedStore.address}'),
+      );
+      expect(find.textContaining('지도 앱을 열 수 없습니다.'), findsNothing);
+    },
+  );
+
+  testWidgets('shows a general error when the launcher returns false', (
+    tester,
+  ) async {
+    final launcher = _FakeExternalUriLauncher(result: false);
+    await tester.pumpWidget(detailApp(store(), externalUriLauncher: launcher));
+
+    await tester.tap(find.byKey(storeDirectionsButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(launcher.callCount, 1);
+    expect(find.byType(StoreDetailScreen), findsOneWidget);
+    expect(find.text('지도 앱을 열 수 없습니다. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+  });
+
+  testWidgets('allows another launch after a failed completed attempt', (
+    tester,
+  ) async {
+    final launcher = _FakeExternalUriLauncher(result: false);
+    await tester.pumpWidget(detailApp(store(), externalUriLauncher: launcher));
+
+    await tester.tap(find.byKey(storeDirectionsButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(storeDirectionsButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(launcher.callCount, 2);
+  });
+
+  testWidgets('shows a general error when the launcher throws', (tester) async {
+    final launcher = _FakeExternalUriLauncher(error: StateError('private'));
+    await tester.pumpWidget(detailApp(store(), externalUriLauncher: launcher));
+
+    await tester.tap(find.byKey(storeDirectionsButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(launcher.callCount, 1);
+    expect(find.byType(StoreDetailScreen), findsOneWidget);
+    expect(find.textContaining('private'), findsNothing);
+    expect(find.text('지도 앱을 열 수 없습니다. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+  });
+
+  testWidgets('prevents duplicate launches while a request is in progress', (
+    tester,
+  ) async {
+    final pendingResult = Completer<bool>();
+    final launcher = _FakeExternalUriLauncher(pendingResult: pendingResult);
+    await tester.pumpWidget(detailApp(store(), externalUriLauncher: launcher));
+
+    await tester.tap(find.byKey(storeDirectionsButtonKey));
+    await tester.pump();
+    await tester.tap(find.byKey(storeDirectionsButtonKey));
+    await tester.pump();
+
+    expect(launcher.callCount, 1);
+    pendingResult.complete(true);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('handles an empty address without writing to the clipboard', (
     tester,
   ) async {
@@ -139,10 +242,36 @@ void main() {
               'instead of being clipped on a compact mobile screen',
           burgerStyle: '미분류',
         ),
+        textScale: 2,
       ),
     );
 
     expect(find.byType(SingleChildScrollView), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+class _FakeExternalUriLauncher implements ExternalUriLauncher {
+  _FakeExternalUriLauncher({
+    this.result = true,
+    this.error,
+    this.pendingResult,
+  });
+
+  final bool result;
+  final Object? error;
+  final Completer<bool>? pendingResult;
+  int callCount = 0;
+  final List<Uri> launchedUris = <Uri>[];
+
+  @override
+  Future<bool> launch(Uri uri) {
+    callCount += 1;
+    launchedUris.add(uri);
+    final launchError = error;
+    if (launchError != null) {
+      throw launchError;
+    }
+    return pendingResult?.future ?? Future<bool>.value(result);
+  }
 }

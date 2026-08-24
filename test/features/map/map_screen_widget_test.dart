@@ -4,6 +4,7 @@ import 'package:burger_map_korea/app/app_theme.dart';
 import 'package:burger_map_korea/core/config/app_config.dart';
 import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
+import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
 import 'package:burger_map_korea/features/stores/data/itaewon_store_locations.dart';
 import 'package:burger_map_korea/features/stores/domain/burger_style.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
@@ -57,6 +58,7 @@ void main() {
     required SupabaseStoreLoader loader,
     required StoreMapSurfaceBuilder mapSurfaceBuilder,
     StoreCameraMover? storeCameraMover,
+    ExternalUriLauncher? externalUriLauncher,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -72,6 +74,7 @@ void main() {
           supabaseStoreLoader: loader,
           mapSurfaceBuilder: mapSurfaceBuilder,
           storeCameraMover: storeCameraMover,
+          externalUriLauncher: externalUriLauncher,
         ),
       ),
     );
@@ -649,6 +652,7 @@ void main() {
     'detail navigation passes the same store and preserves map search state',
     (tester) async {
       var loadCalls = 0;
+      final externalUriLauncher = _SuccessfulExternalUriLauncher();
       await pumpSearchableMap(
         tester,
         loader: () async {
@@ -659,6 +663,7 @@ void main() {
           return const ColoredBox(color: Colors.white);
         },
         storeCameraMover: (_) async {},
+        externalUriLauncher: externalUriLauncher,
       );
 
       await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
@@ -680,6 +685,11 @@ void main() {
       expect(identical(detailScreen.store, searchableStores.first), isTrue);
       expect(find.text('Alpha Burger'), findsOneWidget);
       expect(find.text('Seoul Yongsan Alpha-ro 1'), findsOneWidget);
+
+      await tester.tap(find.byKey(storeDirectionsButtonKey));
+      await tester.pumpAndSettle();
+      expect(externalUriLauncher.callCount, 1);
+      expect(loadCalls, 1);
 
       await tester.tap(find.byKey(storeDetailBackButtonKey));
       await tester.pumpAndSettle();
@@ -870,4 +880,14 @@ void main() {
       findsNothing,
     );
   });
+}
+
+class _SuccessfulExternalUriLauncher implements ExternalUriLauncher {
+  int callCount = 0;
+
+  @override
+  Future<bool> launch(Uri uri) async {
+    callCount += 1;
+    return true;
+  }
 }

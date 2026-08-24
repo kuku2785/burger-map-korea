@@ -1,19 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/external_uri_launcher.dart';
 import '../domain/burger_style.dart';
+import '../domain/google_maps_directions.dart';
 import '../domain/store_location.dart';
 
 const storeDetailBackButtonKey = ValueKey<String>('store-detail-back-button');
 const storeAddressCopyButtonKey = ValueKey<String>('store-address-copy-button');
+const storeDirectionsButtonKey = ValueKey<String>('store-directions-button');
 
-class StoreDetailScreen extends StatelessWidget {
-  const StoreDetailScreen({super.key, required this.store});
+class StoreDetailScreen extends StatefulWidget {
+  const StoreDetailScreen({
+    super.key,
+    required this.store,
+    this.externalUriLauncher = const UrlLauncherExternalUriLauncher(),
+  });
 
   final StoreLocation store;
+  final ExternalUriLauncher externalUriLauncher;
+
+  @override
+  State<StoreDetailScreen> createState() => _StoreDetailScreenState();
+}
+
+class _StoreDetailScreenState extends State<StoreDetailScreen> {
+  bool _isOpeningDirections = false;
 
   @override
   Widget build(BuildContext context) {
+    final store = widget.store;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -45,14 +61,31 @@ class StoreDetailScreen extends StatelessWidget {
                     : store.address,
               ),
               const SizedBox(height: 12),
-              Tooltip(
-                message: '주소 복사',
-                child: FilledButton.icon(
-                  key: storeAddressCopyButtonKey,
-                  onPressed: () => _copyAddress(context),
-                  icon: const Icon(Icons.copy_outlined),
-                  label: const Text('주소 복사'),
-                ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  Tooltip(
+                    message: '길찾기',
+                    child: FilledButton.icon(
+                      key: storeDirectionsButtonKey,
+                      onPressed: _isOpeningDirections
+                          ? null
+                          : () => _openDirections(context),
+                      icon: const Icon(Icons.directions_outlined),
+                      label: const Text('길찾기'),
+                    ),
+                  ),
+                  Tooltip(
+                    message: '주소 복사',
+                    child: OutlinedButton.icon(
+                      key: storeAddressCopyButtonKey,
+                      onPressed: () => _copyAddress(context),
+                      icon: const Icon(Icons.copy_outlined),
+                      label: const Text('주소 복사'),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
               _StoreDetailSection(
@@ -68,7 +101,7 @@ class StoreDetailScreen extends StatelessWidget {
   }
 
   Future<void> _copyAddress(BuildContext context) async {
-    final address = store.address.trim();
+    final address = widget.store.address.trim();
     if (address.isEmpty) {
       _showMessage(context, '복사할 주소가 없습니다.');
       return;
@@ -79,6 +112,43 @@ class StoreDetailScreen extends StatelessWidget {
       return;
     }
     _showMessage(context, '주소를 복사했습니다.');
+  }
+
+  Future<void> _openDirections(BuildContext context) async {
+    if (_isOpeningDirections) {
+      return;
+    }
+
+    setState(() {
+      _isOpeningDirections = true;
+    });
+
+    try {
+      final uri = buildGoogleMapsDirectionsUri(
+        name: widget.store.name,
+        address: widget.store.address,
+        latitude: widget.store.latitude,
+        longitude: widget.store.longitude,
+      );
+      final launched = await widget.externalUriLauncher.launch(uri);
+      if (!launched && context.mounted) {
+        _showDirectionsError(context);
+      }
+    } on Object {
+      if (context.mounted) {
+        _showDirectionsError(context);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningDirections = false;
+        });
+      }
+    }
+  }
+
+  void _showDirectionsError(BuildContext context) {
+    _showMessage(context, '지도 앱을 열 수 없습니다. 잠시 후 다시 시도해 주세요.');
   }
 
   void _showMessage(BuildContext context, String message) {

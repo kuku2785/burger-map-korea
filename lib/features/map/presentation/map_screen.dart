@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../stores/data/external_uri_launcher.dart';
 import '../../stores/data/itaewon_store_locations.dart';
 import '../../stores/data/staging_store_locations_loader.dart';
 import '../../stores/data/supabase_store_locations_loader.dart';
@@ -39,6 +40,7 @@ class MapScreen extends StatefulWidget {
     this.supabaseStoreLoader,
     this.storeCameraMover,
     this.mapSurfaceBuilder,
+    this.externalUriLauncher,
   });
 
   final AppConfig config;
@@ -47,6 +49,7 @@ class MapScreen extends StatefulWidget {
   final SupabaseStoreLoader? supabaseStoreLoader;
   final StoreCameraMover? storeCameraMover;
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
+  final ExternalUriLauncher? externalUriLauncher;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -371,9 +374,15 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _openStoreDetails(StoreLocation store) async {
+    final externalUriLauncher = widget.externalUriLauncher;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (context) => StoreDetailScreen(store: store),
+        builder: (context) => externalUriLauncher == null
+            ? StoreDetailScreen(store: store)
+            : StoreDetailScreen(
+                store: store,
+                externalUriLauncher: externalUriLauncher,
+              ),
       ),
     );
   }

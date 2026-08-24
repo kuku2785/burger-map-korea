@@ -1,5 +1,7 @@
 # Burger Map Korea
 
+현재 구현·검증·출시 준비 상태는 [PROJECT_STATUS.md](PROJECT_STATUS.md)를 기준으로 관리합니다.
+
 버거맵 코리아 Phase 1은 전체 앱 구현이 아니라 Google Maps 기술 스파이크입니다.
 
 ## 목적
