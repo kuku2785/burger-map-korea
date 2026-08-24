@@ -21,7 +21,7 @@
 | 카메라 이동 이벤트 | 미검증 | Google Maps 플랫폼 뷰 실기기 확인 필요 |
 | Android debug APK 빌드 | 완료 | 2026-08-10 `flutter build apk --debug` 성공. `build\app\outputs\flutter-apk\app-debug.apk` 생성 |
 | Android 에뮬레이터 | 완료 | 2026-08-10 `Medium_Phone_API_36.1`, Android 16/API 36 실행 및 `emulator-5554` Flutter device 감지 확인 |
-| Package / debug SHA-1 | 완료 | Package `com.burgermap.burger_map_korea`, debug SHA-1 확인 |
+| Package / debug SHA-1 | 완료 | Package `com.burgermapkorea.app`, debug SHA-1 확인 |
 | API key Git 미포함 | 완료 | `.env` 없음, `.gitignore`에서 `.env` 제외, Git 추적 파일 내 실제 Google API key 패턴 미발견 |
 | Android 실기기 | 미검증 | Android toolchain 정리 및 기기 연결 필요 |
 | iOS Simulator | 미검증 | macOS 필요 |

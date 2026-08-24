@@ -131,8 +131,8 @@ APK 크기:
 Android package와 debug 서명:
 
 ```text
-Package: com.burgermap.burger_map_korea
-Debug SHA-1: 91:C0:F9:F3:3A:0B:27:5A:82:4D:86:0B:B8:CB:BC:80:48:47:67:E1
+Package: com.burgermapkorea.app
+Debug SHA-1: <로컬에서 확인>
 ```
 
 Google Maps API key 상태:
@@ -280,8 +280,8 @@ Phase 1 최종 자동 검증:
 3. `Maps SDK for Android` 활성화
 4. Android용 API key 생성
 5. Application restriction을 `Android apps`로 설정
-6. package `com.burgermap.burger_map_korea` 등록
-7. debug SHA-1 `91:C0:F9:F3:3A:0B:27:5A:82:4D:86:0B:B8:CB:BC:80:48:47:67:E1` 등록
+6. package `com.burgermapkorea.app` 등록
+7. debug SHA-1 `<로컬에서 확인>` 등록
 8. API restrictions를 `Maps SDK for Android`로 제한
 9. `flutter run --dart-define=APP_ENV=development --dart-define=GOOGLE_MAPS_API_KEY=...`
 10. 지도 표시, 마커 선택, 상세 카드, 카메라 이동 이벤트 확인

@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="burger_map_korea"
+        android:label="버거맵 코리아"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data

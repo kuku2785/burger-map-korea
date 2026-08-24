@@ -63,17 +63,17 @@ API 키가 없으면 Google Maps 위젯을 생성하지 않고 안내 화면을 
    - Maps SDK for iOS
 4. API key를 생성합니다.
 5. Android 키는 Android application restriction을 설정합니다.
-   - Package name: 현재 임시 application ID `com.burgermap.burger_map_korea`
+   - Package name: 확정 application ID `com.burgermapkorea.app`
    - SHA-1 certificate fingerprint: debug/release keystore에 맞게 등록
 6. iOS 키는 iOS application restriction을 설정합니다.
    - Bundle ID: Xcode의 Runner target에서 확인 및 출시 전 확정
 
-현재 application ID와 Bundle ID는 기술 검증용입니다. 출시 전 최종 ID를 확정해야 합니다.
+Android application ID는 `com.burgermapkorea.app`으로 확정됐습니다. iOS Bundle ID는 이번 Android 단계에서 변경하지 않았으며 별도로 확정해야 합니다.
 
 Phase 1 Android debug 검증용 값:
 
-- Package name: `com.burgermap.burger_map_korea`
-- Debug SHA-1: `91:C0:F9:F3:3A:0B:27:5A:82:4D:86:0B:B8:CB:BC:80:48:47:67:E1`
+- Package name: `com.burgermapkorea.app`
+- Debug SHA-1: `<로컬에서 확인>`
 
 Android용 API key는 Application restriction을 `Android apps`로 설정하고 위 package name과 debug SHA-1을 등록합니다. API restrictions는 `Maps SDK for Android`로 제한합니다.
 

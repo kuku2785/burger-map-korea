@@ -1,4 +1,5 @@
 import java.util.Base64
+import java.util.Properties
 import org.gradle.api.tasks.Sync
 
 plugins {
@@ -29,8 +30,48 @@ val prepareDebugStagingAssets by tasks.registering(Sync::class) {
     into(generatedDebugAssetsDirectory)
 }
 
+val releaseBuildRequested =
+    gradle.startParameter.taskNames.any { taskName ->
+        taskName.substringAfterLast(":").contains("release", ignoreCase = true)
+    }
+val releaseSigningPropertyNames =
+    listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+val releaseSigningProperties = Properties()
+var releaseKeystoreFile: File? = null
+
+if (releaseBuildRequested) {
+    val keyPropertiesFile = rootProject.file("key.properties")
+    if (!keyPropertiesFile.isFile) {
+        throw GradleException(
+            "Release signing configuration is missing: android/key.properties"
+        )
+    }
+
+    keyPropertiesFile.inputStream().use(releaseSigningProperties::load)
+    val invalidProperties =
+        releaseSigningPropertyNames.filter { propertyName ->
+            val value = releaseSigningProperties.getProperty(propertyName)?.trim().orEmpty()
+            value.isEmpty() || value.contains("REPLACE", ignoreCase = true)
+        }
+    if (invalidProperties.isNotEmpty()) {
+        throw GradleException(
+            "Release signing properties are missing or placeholders: " +
+                invalidProperties.sorted().joinToString(", ")
+        )
+    }
+
+    val resolvedKeystoreFile =
+        file(releaseSigningProperties.getProperty("storeFile").trim())
+    if (!resolvedKeystoreFile.isFile) {
+        throw GradleException(
+            "Release signing keystore is missing for property: storeFile"
+        )
+    }
+    releaseKeystoreFile = resolvedKeystoreFile
+}
+
 android {
-    namespace = "com.burgermap.burger_map_korea"
+    namespace = "com.burgermapkorea.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -40,8 +81,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.burgermap.burger_map_korea"
+        applicationId = "com.burgermapkorea.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -60,11 +100,22 @@ android {
                 .get()
     }
 
+    signingConfigs {
+        if (releaseBuildRequested) {
+            create("release") {
+                storeFile = releaseKeystoreFile
+                storePassword = releaseSigningProperties.getProperty("storePassword").trim()
+                keyAlias = releaseSigningProperties.getProperty("keyAlias").trim()
+                keyPassword = releaseSigningProperties.getProperty("keyPassword").trim()
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (releaseBuildRequested) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

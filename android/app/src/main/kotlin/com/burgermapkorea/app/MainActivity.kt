@@ -1,4 +1,4 @@
-package com.burgermap.burger_map_korea
+package com.burgermapkorea.app
 
 import io.flutter.embedding.android.FlutterActivity
 

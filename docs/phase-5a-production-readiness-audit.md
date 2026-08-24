@@ -16,14 +16,14 @@
 | 지도 중심 MVP 기능 | ready | P1 | 지도, 로컬 검색, 스타일 필터, 상세 화면, 주소 복사, 빈 상태, 오류, 재시도가 구현됨 |
 | production 데이터 모드 | ready | P0 | Phase 5B에서 production/release를 Supabase로 고정하고 로컬 fallback을 차단함 |
 | Supabase 읽기 보안 | ready | P0 | Publishable key와 RLS를 사용하며 `verified + active`만 SELECT함 |
-| Android release 서명 | blocked | P0 | release가 debug signing config를 사용함 |
-| 최종 application ID | needs_user_action | P0 | `com.burgermap.burger_map_korea`를 첫 Play 업로드 전에 최종 확정해야 함 |
+| Android release 서명 | ready | P0 | 로컬 upload key로 signed AAB 생성·검증, debug fallback 없음 |
+| 최종 application ID | ready | P0 | `com.burgermapkorea.app`으로 확정하고 Android production source에 적용함 |
 | Google Maps release key | needs_user_action | P0 | 최종 package name과 Play App Signing SHA-1에 제한된 release key가 필요함 |
 | 공개 매장 데이터 | blocked | P1 | 사용자 보고 기준 원격 공개 매장이 1곳뿐이라 지도 탐색 MVP로서 효용이 부족함 |
-| 앱 이름·아이콘·스플래시 | blocked | P1 | label이 개발용 문자열이고 Flutter 기본 아이콘과 무브랜드 시작 화면이 남아 있음 |
+| 앱 이름·아이콘·스플래시 | partial | P1 | 정식 Android label 적용 완료. Flutter 기본 아이콘과 무브랜드 시작 화면은 남아 있음 |
 | Play 정책·스토어 자료 | needs_user_action | P1 | 개인정보처리방침, Data safety, 콘텐츠 등급, 스크린샷 등 입력이 필요함 |
 | Android API 수준 | ready | P0 | 현재 환경에서 compile/target SDK 36, min SDK 24로 해석됨 |
-| 자동 테스트·진단 빌드 | ready | P1 | Python 103개, Flutter 87개, analyze 및 debug APK/release AAB 진단 빌드 성공 |
+| 자동 테스트·빌드 안전장치 | ready | P1 | Python 112개, Flutter 87개, analyze·debug APK·signed release AAB 검증 성공 |
 | 실제 기기·Play 설치 검증 | blocked | P1 | 에뮬레이터 검증만 기록되어 있고 실제 Android 기기와 Play 배포 AAB 검증이 없음 |
 | release asset 분리 | ready | P0 | debug 전용 generated source set으로 분리하고 release AAB entry·manifest·식별 값 0건 확인 |
 
@@ -55,14 +55,14 @@ Phase 5B 이후 release는 production Supabase만 선택하며 설정 누락 시
    - production/release는 요청된 data mode와 무관하게 Supabase를 사용한다.
    - 설정 누락이나 오류가 있어도 pilot/staging으로 fallback하지 않는다.
 
-2. **Release가 debug 인증서로 서명됨** (`blocked`)
-   - `android/app/build.gradle.kts`의 release signing config가 debug signing config를 참조한다.
-   - 진단 AAB의 인증서도 Android Debug로 확인됐다.
-   - 해결: 사용자가 upload key를 안전하게 생성·백업하고 Play App Signing을 사용하며, 로컬 비밀 설정에서만 서명 정보를 주입한다.
+2. **Release upload keystore 준비** (`ready`)
+   - Phase 5C-A에서 release의 debug signing fallback을 제거했다.
+   - 사용자가 upload key와 key.properties를 로컬에서 생성했고 signed AAB를 검증했다.
+   - 로컬 signing 파일은 Git에서 제외한다. Play App Signing 활성화와 별도 안전 백업은 사용자 운영 작업으로 남는다.
 
-3. **최종 application ID 미확정** (`needs_user_action`)
-   - 현재 값은 `com.burgermap.burger_map_korea`이며 `com.example`은 아니다.
-   - Play에 처음 업로드한 뒤에는 application ID 변경을 새 앱으로 취급해야 하므로, 브랜드 소유 도메인과 장기 운영 관점에서 이 값을 유지할지 사용자가 확정해야 한다.
+3. **최종 application ID 확정** (`ready`)
+   - 사용자가 `com.burgermapkorea.app`을 최종 승인했고 Phase 5C-A에서 application ID, namespace, MainActivity package에 적용했다.
+   - Play에 처음 업로드한 뒤에는 application ID 변경을 새 앱으로 취급하므로 이 값을 장기적으로 유지한다.
 
 4. **Google Maps production key 미준비** (`needs_user_action`)
    - release 빌드용 별도 키를 최종 application ID와 Play App Signing 인증서 SHA-1로 제한해야 한다.
@@ -76,7 +76,7 @@ Phase 5B 이후 release는 production Supabase만 선택하며 설정 누락 시
    - 비공개 사용성 테스트에는 용산구의 검수 완료 매장 10~15곳, 공개 MVP에는 20~30곳을 권장한다. 이는 자동 승인 기준이 아니라 운영 권장치다.
 
 2. **출시 브랜드 자료 미완성** (`blocked`)
-   - Android label은 `burger_map_korea`이고 launcher icon은 Flutter 기본 아이콘이다.
+   - Android label은 `버거맵 코리아`로 적용했지만 launcher icon은 Flutter 기본 아이콘이다.
    - adaptive icon, 브랜드 스플래시, Play 아이콘, feature graphic, 스크린샷이 필요하다.
 
 3. **실제 기기 및 Play 설치 검증 없음** (`blocked`)
@@ -126,8 +126,8 @@ production debug는 `APP_ENV=production`을 기준으로 Supabase를 강제한�
 | --- | --- | --- | --- |
 | 공식 Flutter 패키지 | ready | P1 | `google_maps_flutter` 사용 |
 | Android manifest metadata | ready | P0 | 빌드 시 주입 구조 존재 |
-| release key 제한 | needs_user_action | P0 | 최종 package + Play App Signing SHA-1 제한 필요 |
-| API 제한 | needs_user_action | P0 | Maps SDK for Android만 허용하도록 설정 필요 |
+| release key 제한 | partial | P0 | 새 package + debug 인증서 제한 완료. upload/Play App Signing SHA-1은 사용 시 추가 필요 |
+| API 제한 | ready | P0 | 사용자가 Maps SDK for Android로 제한 완료 |
 | 불필요한 위치 권한 | ready | P0 | 위치 권한 선언 없음, My Location 비활성화 |
 | 키 미설정 처리 | ready | P1 | 안내 화면 존재. production 문구는 비기술적 표현으로 조정 권장 |
 | 실제 release key 지도 렌더링 | blocked | P1 | Play 설치본으로 확인되지 않음 |
@@ -138,11 +138,11 @@ production debug는 `APP_ENV=production`을 기준으로 Supabase를 강제한�
 
 | 항목 | 상태 | 우선순위 | 결과 |
 | --- | --- | --- | --- |
-| application ID/namespace | needs_user_action | P0 | 모두 `com.burgermap.burger_map_korea`; 첫 업로드 전 최종 확정 |
-| 앱 표시 이름 | blocked | P1 | `burger_map_korea` 개발용 label |
+| application ID/namespace | ready | P0 | 모두 `com.burgermapkorea.app`으로 확정·적용 |
+| 앱 표시 이름 | ready | P1 | Android label을 `버거맵 코리아`로 적용 |
 | 버전 | ready | P1 | `1.0.0+1`; 매 업로드마다 versionCode 증가 필요 |
 | SDK 수준 | ready | P0 | min 24, target/compile 36 |
-| release 서명 | blocked | P0 | debug signing 사용 |
+| release 서명 | ready | P0 | 로컬 upload key로 signed AAB 생성·검증, debug fallback 없음 |
 | keystore 비밀정보 제외 | ready | P0 | keystore와 key properties가 ignore되고 추적 파일 없음 |
 | Android 12 exported | ready | P0 | launcher Activity에 `exported=true` |
 | 권한 | ready | P0 | INTERNET/네트워크 상태 외 고위험 앱 권한 없음 |
@@ -183,9 +183,9 @@ production debug는 `APP_ENV=production`을 기준으로 Supabase를 강제한�
 | 실제 CSV/생성 SQL/staging JSON | ready | P0 | Git 제외, 추적되지 않음 |
 | APK/AAB/build | ready | P0 | Git 제외, 추적되지 않음 |
 | Supabase RLS | ready | P0 | 활성화, 공개 읽기 정책 1개, 공개 쓰기 정책 없음 |
-| Maps key 제한 | needs_user_action | P0 | release 키 생성 후 package/SHA-1/API 제한 필요 |
-| release signing key | blocked | P0 | 아직 upload key 구조 없음 |
-| 사용자 오류 메시지 | blocked | P1 | 지도 오류의 원시 예외 노출 가능성 제거 필요 |
+| Maps key 제한 | partial | P0 | debug package/인증서와 API 제한 완료. upload/Play App Signing 인증서 제한은 후속 등록 필요 |
+| release signing key | ready | P0 | 로컬 upload key와 key.properties 준비, Git 제외, signed AAB 검증 완료 |
+| 사용자 오류 메시지 | ready | P1 | production에서 일반 오류만 표시하고 기술 세부사항 차단 |
 
 Google Maps Android 키는 앱 바이너리에서 추출 가능하므로 저장소 비공개화나 난독화만으로 보호되지 않는다. application restriction과 API restriction, 키 분리, quota/예산 알림을 함께 적용한다. Supabase Publishable key는 공개 클라이언트용이지만 RLS가 실제 권한 경계이며, secret/service-role key는 Flutter에 절대 넣지 않는다.
 
@@ -225,8 +225,8 @@ Supabase 요청도 서비스 제공 과정에서 IP와 요청 메타데이터가
 | Play 개발자 계정 | needs_user_action | P0 | 개인/조직 유형과 생성일 확인 |
 | 12명·14일 비공개 테스트 | needs_user_action | P0 | 2023-11-13 이후 생성된 개인 계정인지 확인 후 해당되면 수행 |
 | Production access 신청 | needs_user_action | P0 | 대상 개인 계정이면 비공개 테스트 이후 신청 |
-| AAB | blocked | P0 | release signing과 production 설정 완료 후 새로 생성 |
-| Play App Signing | needs_user_action | P0 | upload key 생성·백업 후 등록 |
+| AAB | ready | P0 | 로컬 upload key로 signed release AAB 생성·서명 검증 완료. Play 업로드 전 최종 설정값 빌드 필요 |
+| Play App Signing | needs_user_action | P0 | Play Console에서 활성화하고 배포 인증서 제한 등록 |
 | target API | ready | P0 | 2026-08-31 시행 API 36 요구에 현재 target 36이 부합 |
 | 개인정보처리방침 | blocked | P1 | 공개 URL 작성·게시 |
 | Data safety | needs_user_action | P1 | Maps/Supabase 실제 처리를 반영해 작성 |
@@ -249,22 +249,23 @@ Google Play 심사는 최대 7일 이상 걸릴 수 있으므로 출시일 직�
 - `dart format --output=none --set-exit-if-changed .`: 25개 파일, 변경 0
 - `flutter analyze --no-pub`: 이슈 0
 - `flutter test --no-pub`: 87개 통과
-- Python 전체 테스트: 103개 통과
+- Python 전체 테스트: 112개 통과
 - debug APK 빌드: 성공, 약 182.7 MiB
-- release AAB 진단 빌드: 성공, 약 49.0 MiB
-- release bundle 검사: staging entry 0, AssetManifest 참조 0, staging 식별 값 0, 실제 key/URL/JWT 패턴 0
+- Phase 5B release AAB 진단 빌드와 bundle 검사는 당시 성공
+- Phase 5C-A signed release AAB 빌드와 `jarsigner -verify`: 성공
+- release bundle 검사: staging entry 0, AssetManifest staging 참조 0, staging 식별 값 0, 비밀 패턴 0
 - Android 환경: Flutter 3.44.8, Dart 3.12.2, Android SDK 36.1, licenses 동의 완료
 - 현재 연결 에뮬레이터: Android 15/API 35
 
-진단 AAB는 Maps key가 비어 있고 debug 인증서로 서명됐지만 release runtime은 production/Supabase로 고정되며 pilot/staging으로 복귀하지 않는다. 성공한 빌드라는 사실은 배포 가능하다는 뜻이 아니다.
+새 signed AAB는 로컬 upload key로 서명됐고 release runtime은 production/Supabase로 고정되며 pilot/staging으로 복귀하지 않는다. Play 배포 전에는 production 설정값, Play App Signing, 스토어 메타데이터와 정책 검증이 별도로 필요하다.
 
 ### 남은 검증
 
 | 검증 | 상태 | 우선순위 | 완료 조건 |
 | --- | --- | --- | --- |
 | production release mode | ready | P0 | Supabase 전용, pilot/staging fallback 없음, 설정 누락 fail-closed 자동·수동 검증 완료 |
-| release Maps key | blocked | P0 | Play 설치본에서 실제 지도 타일과 마커 표시 |
-| release signing | blocked | P0 | upload key로 서명된 AAB와 Play App Signing 확인 |
+| release Maps key | partial | P0 | debug 설치본 지도·마커 확인 완료. upload/Play App Signing 인증서로 각각 제한 후 확인 필요 |
+| release signing | partial | P0 | upload key signed AAB 검증 완료. Play App Signing과 Play 설치본 확인 필요 |
 | 실제 Android 기기 | blocked | P1 | 최소 1대, 권장 2대에서 핵심 흐름 확인 |
 | 느린 네트워크·오프라인 | blocked | P1 | 시작·재시도·복귀에서 crash/무한 loading 없음 |
 | Supabase 401·5xx | blocked | P1 | 사용자에게 일반 오류와 재시도, 민감정보 미노출 |
@@ -278,9 +279,9 @@ Google Play 심사는 최대 7일 이상 걸릴 수 있으므로 출시일 직�
 ## 10. 사용자 직접 작업
 
 1. Play Console에서 개발자 계정 유형과 생성일을 확인한다.
-2. 현재 application ID를 영구 사용해도 되는지 확정한다.
-3. upload key를 생성해 별도 안전 장소에 백업하고 Play App Signing을 설정한다.
-4. Google Cloud에서 production Maps key를 분리하고 최종 package, Play App Signing SHA-1, Maps SDK for Android로 제한한다.
+2. 확정된 application ID `com.burgermapkorea.app`을 Play·Google Maps 설정에 동일하게 사용한다.
+3. 생성한 upload key를 별도 안전 장소에 백업하고 Play App Signing을 설정한다.
+4. Google Cloud 제한에 Play App Signing SHA-1을 추가하고, 로컬 release 지도 테스트 시 upload 인증서 SHA-1도 추가한다.
 5. Maps Billing, quota, 예산 알림을 확인한다.
 6. production Supabase Project URL과 Publishable key를 저장소 밖의 빌드 비밀값으로 준비한다.
 7. 공개 후보 매장을 사람이 재검수하고 게시를 개별 승인한다.
@@ -297,10 +298,10 @@ Google Play 심사는 최대 7일 이상 걸릴 수 있으므로 출시일 직�
 - 상태/우선순위: `ready`, P0
 - 목표: release가 production Supabase와 Google Maps를 사용하고 잘못된 설정은 fail-closed 처리
 - 완료 내용: production/release Supabase 고정, 로컬 fallback 제거, 환경 검증, production 일반 오류 UI, 기술 UI development 한정, debug 전용 staging asset 패키징과 release bundle 검증
-- 사용자 작업: 최종 application ID 결정, production URL/Publishable key와 제한된 Maps key 준비
+- 사용자 작업: production URL/Publishable key와 새 application ID에 제한된 Maps key 준비
 - 완료 조건: release mode에서 Supabase 데이터만 표시, 누락 설정 시 로컬 데이터 미표시, 키 없는 자동 빌드 테스트 유지
 - 예상 시간: 개발 2~4일, 사용자 설정 0.5~1일
-- 선행조건: 최종 application ID 결정
+- 선행조건: 완료된 application ID 확정 유지
 
 ### Phase 5C: 공개 매장 데이터 확장
 
@@ -380,4 +381,4 @@ Google Play 심사는 최대 7일 이상 걸릴 수 있으므로 출시일 직�
 
 ## 감사 결론
 
-지도 중심 MVP와 production Supabase fail-closed 경로, release staging asset 제거는 준비됐다. 다만 release signing, 최종 application ID, 제한된 Maps release key, production Supabase 결정이 남아 아직 출시 불가다. 다음으로 이 P0를 확정하고 검수 매장 확장과 Play 비공개 테스트를 진행해야 한다.
+지도 중심 MVP, production Supabase fail-closed 경로, release staging asset 제거, Android application ID, 로컬 upload signing은 준비됐다. 다만 Play App Signing 인증서 제한, production Supabase 결정, 공개 매장 확장과 Play Console 자료가 남아 아직 출시 가능한 최종 상태는 아니다.

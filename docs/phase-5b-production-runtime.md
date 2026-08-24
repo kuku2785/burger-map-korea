@@ -84,7 +84,7 @@ Android manifest는 `${GOOGLE_MAPS_API_KEY}` placeholder를 사용한다. Gradle
 3. Flutter `--dart-define=GOOGLE_MAPS_API_KEY=...`
 4. 빈 값
 
-실제 key를 소스나 `.env` asset에 넣지 않는다. Android Maps SDK 특성상 key는 최종 APK/AAB manifest에 포함되므로 비밀값처럼 숨기는 방식이 아니라 Google Cloud에서 Android application restriction과 Maps SDK for Android API restriction으로 보호해야 한다. 최종 application ID와 release 인증서 SHA-1이 확정된 뒤 사용자 작업으로 적용한다.
+실제 key를 소스나 `.env` asset에 넣지 않는다. Android Maps SDK 특성상 key는 최종 APK/AAB manifest에 포함되므로 비밀값처럼 숨기는 방식이 아니라 Google Cloud에서 Android application restriction과 Maps SDK for Android API restriction으로 보호해야 한다. debug 인증서 제한은 확인됐으며, 로컬 release 테스트용 upload 인증서와 Play 배포용 Play App Signing 인증서 제한은 각각 별도로 등록해야 한다.
 
 ## 사용자 UI
 
@@ -107,7 +107,7 @@ C:\Users\jeong\flutter\bin\flutter.bat build apk --debug
 C:\Users\jeong\flutter\bin\flutter.bat build appbundle --release --dart-define=APP_ENV=development --dart-define=STORE_DATA_MODE=staging
 ```
 
-두 번째 명령도 release resolver에 의해 production/Supabase가 된다. 실행하면 설정 오류 화면이 나와야 하며 Play 업로드 가능 상태를 의미하지 않는다. application ID와 release signing은 Phase 5D 범위다.
+두 번째 명령도 release resolver에 의해 production/Supabase가 된다. Phase 5C-A에서 로컬 upload signing 구성을 준비해 signed AAB 생성을 검증했지만, Play 업로드 전에는 Play App Signing과 production 설정값을 별도로 확인해야 한다.
 
 ## Release bundle 검사
 
@@ -135,7 +135,7 @@ cd /d C:\Users\jeong\burger-map
 - debug APK staging entry: 1
 - debug APK에서 발견한 staging 식별 값: 71
 
-release AAB는 실제 key가 없는 진단 build이고 release signing도 아직 준비되지 않았으므로 Play 업로드용이 아니다.
+2026-08-20 결과는 당시 실제 key가 없는 진단 build 기준이다. Phase 5C-A에서는 로컬 upload key로 새 signed release AAB를 생성했고 동일 검사에서 staging entry, AssetManifest 참조, staging 식별 값, 비밀 패턴이 모두 0건임을 다시 확인했다.
 
 ## 2026-08-21 수동 검증
 
@@ -219,4 +219,4 @@ C:\Users\jeong\flutter\bin\flutter.bat run -d emulator-5554 --dart-define=APP_EN
 
 최종 자동 검증은 Flutter 87개와 Python 103개 테스트, analyze 이슈 0건, debug APK와 release AAB 진단 빌드 성공으로 완료했다.
 
-원격 Supabase, Google Cloud, application ID, migration, RLS, 실제 데이터와 signing 설정은 변경하지 않았다.
+Phase 5B에서는 원격 Supabase, Google Cloud, application ID, migration, RLS, 실제 데이터와 signing 설정을 변경하지 않았다. 후속 Phase 5C-A에서 Android application ID와 release signing 안전장치를 별도로 적용했다.
