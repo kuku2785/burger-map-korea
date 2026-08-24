@@ -119,3 +119,49 @@ python scripts/data/generate_store_style_update_sql.py
 ```
 
 출력 `data/staging/yongsan_burger_style_update.sql`은 Git에서 제외된다. SQL은 `public.stores`의 `burger_style`만 변경하고 각 UUID가 정확히 한 행에 영향을 주지 않으면 예외로 transaction 전체를 중단한다. 생성기는 SQL을 실행하거나 Supabase에 접속하지 않는다.
+
+## Phase 6A-1 공개 매장 확대 검수표
+
+`build_publish_expansion_review.py`는 staging, 게시 검수표, 스타일 검수표와
+hold report를 교차 검증하고, 로컬 근거 JSON을 23개 pending 매장 검수표로
+결합한다. 이미 공개된 verified + active 매장과 hold 매장은 출력하지 않는다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\build_publish_expansion_review.py
+```
+
+근거 입력 `data/review/yongsan_burger_publish_expansion_evidence.json`과 출력
+`data/review/yongsan_burger_publish_expansion_review.csv`는 모두 Git에서 제외된다.
+생성기는 추천 조건과 최대 9곳 제한을 검증하지만 `publishDecision`, `isActive`,
+SQL, Flutter asset 또는 Supabase를 변경하지 않는다.
+
+## Phase 6A-2 공개 확대 승인과 게시 SQL
+
+수정된 사용자 승인 목록은 Git에서 제외되는
+`data/review/yongsan_burger_publish_expansion_approvals.json`에 이름,
+`storeId`, `candidateId`, 검수표 번호, 승인 스타일과 실제 근거 기준일을 함께
+기록한다. 번호만으로 승인하지 않으며 allowlist 9곳과 명시적 denylist를 모두
+검증한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\apply_publish_expansion_approvals.py
+```
+
+승인 적용기는 게시 검수표 24행 중 정확히 9행만 `verified + active`로 바꾸고,
+기존 공개 매장과 나머지 14행을 그대로 보존한다. 이름·UUID·candidateId,
+staging 주소·좌표, 승인 스타일과 Phase 6A-1 추천 상태가 모두 맞아야 한다.
+실패 시 CSV를 교체하지 않으며 같은 입력으로 재실행하면 최초 `verifiedAt`을
+보존한다.
+
+검수표 반영 후 신규 9곳 전용 SQL을 생성한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\generate_publish_expansion_sql.py
+```
+
+출력 `data/staging/yongsan_burger_store_publish_expansion.sql`은 Git에서 제외된다.
+SQL은 신규 UUID가 DB에 0개일 때만 9행을 INSERT하고, 영향 행 수와
+`verified + active + burger_style` 사후 조건이 맞지 않으면 transaction을
+중단한다. 기존 공개 매장은 INSERT하지 않으며 UPDATE, DELETE, UPSERT, RPC,
+`ON CONFLICT`를 사용하지 않는다. 생성기는 SQL을 실행하거나 Supabase에
+접속하지 않는다.

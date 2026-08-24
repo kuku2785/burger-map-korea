@@ -66,6 +66,8 @@ app.*.map.json
 /data/raw/*
 !/data/raw/.gitkeep
 /data/review/*.csv
+/data/review/yongsan_burger_publish_expansion_evidence.json
+/data/review/yongsan_burger_publish_expansion_approvals.json
 /data/staging/*.csv
 /data/staging/*.sql
 !/data/staging/.gitkeep

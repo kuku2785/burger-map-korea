@@ -1,0 +1,80 @@
+{
+  "checkedAt": "2026-08-24",
+  "stores": [
+    {
+      "candidateId": "virtual_pending_001",
+      "operatingStatusAssessment": "currently_operating",
+      "nameAssessment": "match",
+      "addressAssessment": "match",
+      "coordinateAssessment": "no_known_conflict",
+      "burgerSpecialtyAssessment": "confirmed",
+      "conflictStatus": "none",
+      "recommendedDecision": "ready_for_user_approval",
+      "recommendationReason": "A current official menu confirms the store and burger focus.",
+      "sources": [
+        {
+          "type": "official",
+          "title": "Virtual Burger official menu",
+          "url": "https://example.com/virtual-burger/menu",
+          "publishedAt": "2026-08-01",
+          "checkedDirectly": true,
+          "currentPageState": true,
+          "supports": "Current operation, matching name and address, and burger menu."
+        }
+      ]
+    },
+    {
+      "candidateId": "virtual_pending_002",
+      "operatingStatusAssessment": "currently_operating",
+      "nameAssessment": "variant",
+      "addressAssessment": "match",
+      "coordinateAssessment": "limited_evidence",
+      "burgerSpecialtyAssessment": "confirmed",
+      "conflictStatus": "minor",
+      "recommendedDecision": "ready_for_user_approval",
+      "recommendationReason": "Two recent independent sources agree on the store and address.",
+      "sources": [
+        {
+          "type": "public_platform",
+          "title": "Virtual booking page",
+          "url": "https://example.org/virtual-burger-two",
+          "publishedAt": "unknown",
+          "checkedDirectly": true,
+          "currentPageState": true,
+          "supports": "Live opening calendar and matching address."
+        },
+        {
+          "type": "independent",
+          "title": "Recent virtual visit",
+          "url": "https://example.net/virtual-visit",
+          "publishedAt": "2026-07-10",
+          "checkedDirectly": true,
+          "currentPageState": false,
+          "supports": "Recent visit and burger-specialty menu."
+        }
+      ]
+    },
+    {
+      "candidateId": "virtual_pending_003",
+      "operatingStatusAssessment": "unclear",
+      "nameAssessment": "match",
+      "addressAssessment": "match",
+      "coordinateAssessment": "limited_evidence",
+      "burgerSpecialtyAssessment": "unclear",
+      "conflictStatus": "minor",
+      "recommendedDecision": "needs_manual_check",
+      "recommendationReason": "Only one undated secondary source was available.",
+      "sources": [
+        {
+          "type": "other",
+          "title": "Virtual directory entry",
+          "url": "https://example.edu/virtual-directory",
+          "publishedAt": "unknown",
+          "checkedDirectly": true,
+          "currentPageState": false,
+          "supports": "Name and address only; current operation is not established."
+        }
+      ]
+    }
+  ]
+}

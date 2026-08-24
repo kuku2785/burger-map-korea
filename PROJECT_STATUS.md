@@ -12,13 +12,15 @@
 - Phase 5B production/release Supabase 전용 runtime과 개발 데이터 fallback 차단
 - Phase 5C-A Android application ID, 앱 이름, release signing 구성
 - Phase 5D-A 외부 길찾기: 구현·자동 검증·수동 검증 완료
+- Phase 6A: 용산구 공개 검수 매장 10곳 확보 및 앱 수동 검증 완료
 - 로컬 upload key로 signed release AAB 생성 및 서명 자동 검증
 - 새 Android package의 development staging 모드에서 Google 지도와 마커 24개 사용자 수동 확인
-- 사용자 보고 기준 Supabase의 `verified + active` 공개 매장 1곳
+- 사용자 보고 기준 Supabase의 `verified + active` 공개 매장 10곳
+- development + Supabase 모드에서 마커 10개와 필터·검색·상세·길찾기 사용자 수동 확인
 
 ## 진행 중
 
-- 실제 검수·공개 매장 확대
+- 공개 검수 매장 25곳 중간 목표를 위한 다음 검수 범위 선정
 
 ## 미완료·미검증
 
@@ -30,7 +32,9 @@
 - Android 실제 기기 3종 QA
 - iOS Bundle ID, signing, 지도 키와 App Store 출시 게이트
 - 공개 개인정보처리방침과 지원 페이지
+- 공개 검수 매장 25곳 중간 목표
 - 검수 완료 공개 매장 100곳
+- 서울 검수 범위를 벗어난 전국 확대는 현재 금지
 - 성능, 접근성, 느린 네트워크·오프라인, 장애 복구 종합 검증
 
 ## 출시 판단
