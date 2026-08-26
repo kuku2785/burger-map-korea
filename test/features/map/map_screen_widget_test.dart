@@ -15,6 +15,49 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../support/staging_fixture.dart';
 
+List<StoreLocation> buildSyntheticPublic25Stores() {
+  const styles = <String>[
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'classic',
+    'smash',
+    'chicken',
+    'chicken',
+    'other',
+    'other',
+    'other',
+    'unclassified',
+    'unclassified',
+    'unclassified',
+    'unclassified',
+    'unclassified',
+  ];
+
+  return List<StoreLocation>.generate(25, (index) {
+    final number = index + 1;
+    return StoreLocation(
+      id: 'public-$number',
+      name: 'Public Burger $number',
+      address: 'Seoul Yongsan Test-road $number',
+      latitude: 37.50 + index * 0.001,
+      longitude: 126.90 + index * 0.001,
+      burgerStyle: styles[index],
+      verificationStatus: 'verified',
+    );
+  });
+}
+
 void main() {
   final searchableStores = <StoreLocation>[
     StoreLocation(
@@ -557,6 +600,81 @@ void main() {
 
     expect(loadCalls, 1);
   });
+
+  testWidgets(
+    'filters 25 loaded public stores locally without another Supabase load',
+    (tester) async {
+      final publicStores = buildSyntheticPublic25Stores();
+      var loadCalls = 0;
+      var markerCount = 0;
+      await pumpSearchableMap(
+        tester,
+        loader: () async {
+          loadCalls += 1;
+          return publicStores;
+        },
+        mapSurfaceBuilder: (markers, onMapTap) {
+          markerCount = markers.length;
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+
+      expect(markerCount, 25);
+      expect(loadCalls, 1);
+      expect(find.byKey(burgerStyleAllFilterKey), findsOneWidget);
+      expect(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.classic)),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.smash)),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.other)),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.unclassified)),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.plantBased)),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
+      await tester.pump();
+      expect(markerCount, 1);
+
+      await tester.enterText(
+        find.byKey(storeSearchFieldKey),
+        '  yOnGsAn   Test-road 15  ',
+      );
+      await tester.pump();
+      expect(markerCount, 1);
+      expect(find.text('Public Burger 15'), findsOneWidget);
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'not present');
+      await tester.pump();
+      expect(markerCount, 0);
+      expect(find.text('검색 결과가 없습니다.'), findsOneWidget);
+
+      await tester.tap(find.byKey(storeSearchClearButtonKey));
+      await tester.pump();
+      expect(markerCount, 1);
+      expect(loadCalls, 1);
+
+      await tester.tap(find.byKey(burgerStyleAllFilterKey));
+      await tester.pump();
+      expect(markerCount, 25);
+      expect(loadCalls, 1);
+    },
+  );
 
   testWidgets(
     'marker selection and blank map tap keep their existing behavior',
