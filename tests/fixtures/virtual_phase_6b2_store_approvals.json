@@ -34,7 +34,8 @@
       "longitude": "126.9301",
       "addressReferenceLatitude": "37.53011",
       "addressReferenceLongitude": "126.93011",
-      "approvedStyle": "unclassified",
+      "approvedStyle": "chicken",
+      "styleCorrectionFrom": "unclassified",
       "sourceAsOf": "2026-08-26",
       "evidence": [
         {"type": "public_platform", "title": "Synthetic current store", "url": "https://example.com/store"},

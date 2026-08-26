@@ -179,6 +179,7 @@ def load_phase_6b2_approval_manifest(
                 "addressReferenceLatitude",
                 "addressReferenceLongitude",
                 "approvedStyle",
+                "styleCorrectionFrom",
                 "sourceAsOf",
             )
         }
@@ -191,6 +192,15 @@ def load_phase_6b2_approval_manifest(
                 raise StorePublishingError(f"승인 필드가 비었습니다: {label}, {field}")
         if approval["approvedStyle"] not in ALLOWED_STYLES:
             raise StorePublishingError(f"승인 스타일이 올바르지 않습니다: {label}")
+        if approval["styleCorrectionFrom"]:
+            if approval["styleCorrectionFrom"] not in ALLOWED_STYLES:
+                raise StorePublishingError(
+                    f"교정 전 스타일이 올바르지 않습니다: {label}"
+                )
+            if approval["styleCorrectionFrom"] == approval["approvedStyle"]:
+                raise StorePublishingError(
+                    f"교정 전후 스타일이 같습니다: {label}"
+                )
         approval["sourceAsOf"] = _parse_date(approval["sourceAsOf"], label, today)
         latitude = parse_coordinate(approval["latitude"], "latitude", label)
         longitude = parse_coordinate(approval["longitude"], "longitude", label)

@@ -33,6 +33,31 @@ python scripts/data/extract_burger_candidates.py `
 C:\Users\jeong\anaconda3\python.exe -m pytest tests/data
 ```
 
+## Phase 6B-2 잭잭 스타일 교정
+
+Phase 6B-2 승인 근거의 `approvedStyle`이 게시 검수표와 INSERT SQL의
+`burger_style` 원천이다. 잭잭 교정은 승인 근거에 `approvedStyle=chicken`과
+`styleCorrectionFrom=unclassified`를 명시한다. 이미 원격에 적용된 과거 2행 INSERT
+SQL은 적용 이력으로 보존하며 다시 생성하거나 덮어쓰지 않는다.
+
+로컬 게시 검수표는 다음 명령으로 교정한다. 이 도구는 선언된 대상 한 곳의
+`burgerStyle`만 변경하고, 이미 `chicken`이면 변경 없이 통과한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\apply_phase_6b2_style_correction.py
+```
+
+원격 교정용 SQL은 별도 생성한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\generate_phase_6b2_style_correction_sql.py
+```
+
+출력 `data/staging/yongsan_burger_phase_6b2_jackjack_style_correction.sql`은 Git에서
+제외된다. SQL은 잭잭의 UUID·이름·현재 주소·공개 상태·기존 스타일이 모두 일치하고
+대상이 정확히 1행일 때만 `burger_style`을 `chicken`으로 변경한다. 실행 전후 공개
+매장 수 25곳도 검사한다. 생성기는 Supabase에 접속하거나 SQL을 실행하지 않는다.
+
 ## 판정 원칙
 
 - `상권업종소분류명`이 `버거`이거나 업종 필드에 `버거`, `햄버거`, `수제버거`가 있으면 업종 후보가 된다. Phase 2.1A 출력과의 하위 호환을 위해 기존 `패스트푸드` 업종 탐색도 유지한다.

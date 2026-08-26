@@ -30,6 +30,8 @@
 - 아메리칸치즈버거는 `pending + inactive`와 `needs_manual_check` 유지
 - 공개 25곳 대상 이름·주소 검색과 버거 스타일 필터의 클라이언트 동작 자동 검증 완료
 - 실제 원격 25곳으로 검색·필터·마커·상세·길찾기 사용자 수동 확인은 아직 진행 필요
+- 잭잭 `burger_style`을 `unclassified`에서 `chicken`으로 교정하고 원격 Supabase 적용 완료
+- 교정 후 원격 `verified + active` 공개 매장 25곳 유지 및 실제 앱 치킨 필터에서 잭잭 표시 확인 완료
 
 ## 미완료·미검증
 

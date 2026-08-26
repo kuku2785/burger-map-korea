@@ -40,6 +40,14 @@ sql_tool = load_module(
     "generate_phase_6b2_store_sql_test",
     SCRIPT_DIR / "generate_phase_6b2_store_sql.py",
 )
+style_correction_tool = load_module(
+    "apply_phase_6b2_style_correction_test",
+    SCRIPT_DIR / "apply_phase_6b2_style_correction.py",
+)
+style_correction_sql_tool = load_module(
+    "generate_phase_6b2_style_correction_sql_test",
+    SCRIPT_DIR / "generate_phase_6b2_style_correction_sql.py",
+)
 from store_publishing_common import REVIEW_HEADERS, StorePublishingError  # noqa: E402
 
 
@@ -54,6 +62,7 @@ class Phase6B2StoreApprovalTests(unittest.TestCase):
         self.approval_path = self.root / "approvals.json"
         self.result_path = self.root / "result.json"
         self.sql_path = self.root / "phase6b2.sql"
+        self.style_correction_sql_path = self.root / "phase6b2_style_correction.sql"
         self.approval_path.write_text(
             FIXTURE_PATH.read_text(encoding="utf-8"), encoding="utf-8"
         )
@@ -242,6 +251,13 @@ class Phase6B2StoreApprovalTests(unittest.TestCase):
             ),
         )
 
+    def _set_review_style(self, candidate_id: str, style: str) -> None:
+        rows = self._read_csv(self.publish_path)
+        matches = [row for row in rows if row["candidateId"] == candidate_id]
+        self.assertEqual(len(matches), 1)
+        matches[0]["burgerStyle"] = style
+        self._write_csv(self.publish_path, REVIEW_HEADERS, rows)
+
     def test_applies_exactly_two_and_preserves_excluded_and_inputs(self) -> None:
         protected = (
             self.expansion_path,
@@ -270,8 +286,108 @@ class Phase6B2StoreApprovalTests(unittest.TestCase):
         )
         hold = by_candidate["virtual_hold_current"]
         self.assertEqual(hold["address"], "Virtual Current Road 1F")
+        self.assertEqual(hold["burgerStyle"], "chicken")
         self.assertNotIn("Virtual Historical Road", json.dumps(hold))
         self.assertEqual(hold["storeId"], "20000000-0000-4000-8000-000000000001")
+
+    def test_style_correction_changes_only_declared_burger_style(self) -> None:
+        self._apply()
+        self._set_review_style("virtual_hold_current", "unclassified")
+        before = self._read_csv(self.publish_path)
+
+        rows, changed = style_correction_tool.apply_phase_6b2_style_correction(
+            self.publish_path,
+            self.approval_path,
+            today=dt.date(2026, 8, 26),
+        )
+
+        self.assertTrue(changed)
+        self.assertEqual(len(rows), 26)
+        after = self._read_csv(self.publish_path)
+        changes = []
+        for index, (old, new) in enumerate(zip(before, after, strict=True)):
+            for field in REVIEW_HEADERS:
+                if old[field] != new[field]:
+                    changes.append((index, field, old[field], new[field]))
+        self.assertEqual(
+            changes,
+            [(25, "burgerStyle", "unclassified", "chicken")],
+        )
+        self.assertEqual(
+            sum(
+                row["publishDecision"] == "verified" and row["isActive"] == "true"
+                for row in after
+            ),
+            25,
+        )
+
+    def test_style_correction_is_idempotent_and_rejects_unexpected_style(self) -> None:
+        self._apply()
+        first_hash = self._sha(self.publish_path)
+        _, changed = style_correction_tool.apply_phase_6b2_style_correction(
+            self.publish_path,
+            self.approval_path,
+            today=dt.date(2026, 8, 26),
+        )
+        self.assertFalse(changed)
+        self.assertEqual(self._sha(self.publish_path), first_hash)
+
+        self._set_review_style("virtual_hold_current", "smash")
+        with self.assertRaisesRegex(StorePublishingError, "neither"):
+            style_correction_tool.apply_phase_6b2_style_correction(
+                self.publish_path,
+                self.approval_path,
+                today=dt.date(2026, 8, 26),
+            )
+
+    def test_generates_one_row_guarded_style_correction_sql(self) -> None:
+        self._apply()
+        count = style_correction_sql_tool.generate_phase_6b2_style_correction_sql(
+            self.publish_path,
+            self.approval_path,
+            self.style_correction_sql_path,
+            today=dt.date(2026, 8, 26),
+        )
+        sql = self.style_correction_sql_path.read_text(encoding="utf-8")
+
+        self.assertEqual(count, 1)
+        self.assertEqual(sql.lower().count("update public.stores"), 1)
+        self.assertIn("set burger_style = 'chicken'", sql)
+        self.assertIn("and burger_style = 'unclassified'", sql)
+        self.assertIn("name = 'Virtual Jack'", sql)
+        self.assertIn("address = 'Virtual Current Road 1F'", sql)
+        self.assertIn("verification_status = 'verified'", sql)
+        self.assertIn("is_active = true", sql)
+        self.assertEqual(sql.count("public_count <> 25"), 2)
+        self.assertIn("target_count <> 1", sql)
+        self.assertIn("changed_count <> 1", sql)
+        self.assertNotRegex(
+            sql.lower(), r"\b(insert|delete|upsert|rpc)\b|on\s+conflict"
+        )
+        self.assertNotIn("virtual_hold_current", sql)
+        self.assertNotIn("virtual_place_current", sql)
+        self.assertNotIn("https://", sql)
+
+    def test_existing_style_correction_sql_must_be_identical(self) -> None:
+        self._apply()
+        arguments = (
+            self.publish_path,
+            self.approval_path,
+            self.style_correction_sql_path,
+        )
+        style_correction_sql_tool.generate_phase_6b2_style_correction_sql(
+            *arguments, today=dt.date(2026, 8, 26)
+        )
+        first_hash = self._sha(self.style_correction_sql_path)
+        style_correction_sql_tool.generate_phase_6b2_style_correction_sql(
+            *arguments, today=dt.date(2026, 8, 26)
+        )
+        self.assertEqual(self._sha(self.style_correction_sql_path), first_hash)
+        self.style_correction_sql_path.write_text("changed", encoding="utf-8")
+        with self.assertRaisesRegex(StorePublishingError, "will not be overwritten"):
+            style_correction_sql_tool.generate_phase_6b2_style_correction_sql(
+                *arguments, today=dt.date(2026, 8, 26)
+            )
 
     def test_rerun_preserves_verified_at_uuid_and_publish_hash(self) -> None:
         first = self._apply()
