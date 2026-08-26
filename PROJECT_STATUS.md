@@ -25,8 +25,8 @@
 - 신규 13행 전용 INSERT SQL을 2026-08-26 원격 Supabase에 수동 적용 완료
 - 원격 `verified + active` 공개 매장 10곳에서 23곳으로 증가 확인
 - Phase 6B-2에서 스태커버거샵과 잭잭 2곳 사용자 승인 및 로컬 검수표 반영 완료
-- 신규 2행 전용 INSERT SQL 생성 완료, 원격 Supabase에는 아직 적용하지 않음
-- 원격 현재 공개 23곳, SQL 적용 후 예상 25곳이며 아직 25곳 달성으로 표시하지 않음
+- 신규 2행 전용 INSERT SQL을 2026-08-26 원격 Supabase에 수동 적용 완료
+- 원격 `verified + active` 공개 매장이 23곳에서 25곳으로 증가한 것을 확인함
 - 아메리칸치즈버거는 `pending + inactive`와 `needs_manual_check` 유지
 
 ## 미완료·미검증
