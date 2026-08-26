@@ -70,6 +70,8 @@ app.*.map.json
 /data/review/yongsan_burger_publish_expansion_approvals.json
 /data/review/yongsan_burger_25_store_expansion_evidence.json
 /data/review/yongsan_burger_25_store_expansion_approvals.json
+/data/review/yongsan_burger_phase_6b2_approval_evidence.json
+/data/review/yongsan_burger_phase_6b2_approval_result.json
 /data/staging/*.csv
 /data/staging/*.sql
 !/data/staging/.gitkeep

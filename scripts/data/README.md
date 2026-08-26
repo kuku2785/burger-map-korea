@@ -199,3 +199,37 @@ C:\Users\jeong\anaconda3\python.exe scripts\data\generate_25_store_expansion_sql
 사전 조건에서 실패한다. 출력 SQL 파일이 이미 있으면 현재 생성 결과와 내용을 비교한다.
 내용이 같으면 정상 통과하고, 다르면 기존 파일을 덮어쓰지 않고 중단한다. 두 스크립트
 모두 Supabase에 접속하거나 SQL을 실행하지 않는다.
+
+## Phase 6B-2 부족 2곳 승인과 게시 SQL
+
+사용자가 명시적으로 승인한 pending 1곳과 주소 충돌을 해소한 hold 1곳은 Git에서
+제외되는 `data/review/yongsan_burger_phase_6b2_approval_evidence.json`에 안정
+`storeId`, `candidateId`, `sourcePlaceId`, 현재 주소·좌표, 주소 기준점과 공개 근거를
+기록한다. 승인 제외 후보도 같은 명세에서 pending 상태를 강제한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\apply_phase_6b2_store_approvals.py
+```
+
+적용기는 기존 공개 23곳을 변경하지 않고 승인된 두 행만 `verified + active`로 만든다.
+hold 후보의 기존 `candidateId`, `discoveryId`, `sourcePlaceId` 이력은 로컬 승인 결과에
+보존하지만 DB 게시 컬럼에는 넣지 않는다. 주소 기준 좌표와 25m 이상 차이나거나 UUID,
+정규화한 매장명+주소, `sourcePlaceId`가 기존 공개 매장과 중복되면 중단한다. 승인 제외
+후보는 계속 `pending + inactive`여야 한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\generate_phase_6b2_store_sql.py
+```
+
+출력 `data/staging/yongsan_burger_store_publish_phase_6b2.sql`은 Git에서 제외된다.
+SQL은 실행 전 공개 23곳, 신규 UUID 없음, 매장명+주소 중복 없음과 정확한 2행 INSERT를
+검사하고 실행 후 공개 25곳 및 삽입값 일치를 검증한다. UPDATE, DELETE, UPSERT, RPC와
+`ON CONFLICT`는 사용하지 않는다. 기존 SQL 파일이 있으면 내용을 비교해 같을 때만
+통과하고, 다르면 덮어쓰지 않고 중단한다. 생성기는 Supabase에 접속하거나 SQL을
+실행하지 않는다.
+
+Python 데이터 테스트의 공식 명령은 다음과 같다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe -m pytest tests/data
+```

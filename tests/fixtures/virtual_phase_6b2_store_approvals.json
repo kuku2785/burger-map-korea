@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "approvals": [
+    {
+      "sourceGroup": "pending",
+      "storeId": "10000000-0000-4000-8000-000000000024",
+      "candidateId": "virtual_pending_24",
+      "discoveryId": "",
+      "sourcePlaceId": "virtual_place_24",
+      "name": "Virtual Stacker",
+      "previousAddress": "Virtual Road 24",
+      "address": "Virtual Road 24 1F",
+      "latitude": "37.524",
+      "longitude": "126.924",
+      "addressReferenceLatitude": "37.52401",
+      "addressReferenceLongitude": "126.92401",
+      "approvedStyle": "unclassified",
+      "sourceAsOf": "2026-08-26",
+      "evidence": [
+        {"type": "public_platform", "title": "Synthetic current listing", "url": "https://example.com/current"},
+        {"type": "address", "title": "Synthetic address point", "url": "https://example.com/address"}
+      ]
+    },
+    {
+      "sourceGroup": "hold",
+      "storeId": "20000000-0000-4000-8000-000000000001",
+      "candidateId": "virtual_hold_current",
+      "discoveryId": "virtual_discovery_current",
+      "sourcePlaceId": "virtual_place_current",
+      "name": "Virtual Jack",
+      "previousAddress": "Virtual Historical Road",
+      "address": "Virtual Current Road 1F",
+      "latitude": "37.5301",
+      "longitude": "126.9301",
+      "addressReferenceLatitude": "37.53011",
+      "addressReferenceLongitude": "126.93011",
+      "approvedStyle": "unclassified",
+      "sourceAsOf": "2026-08-26",
+      "evidence": [
+        {"type": "public_platform", "title": "Synthetic current store", "url": "https://example.com/store"},
+        {"type": "address", "title": "Synthetic current address", "url": "https://example.com/current-address"}
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "candidateId": "virtual_excluded_25",
+      "sourcePlaceId": "virtual_place_25",
+      "name": "Virtual Manual Check"
+    }
+  ]
+}
