@@ -9,16 +9,23 @@ import '../domain/store_location.dart';
 const storeDetailBackButtonKey = ValueKey<String>('store-detail-back-button');
 const storeAddressCopyButtonKey = ValueKey<String>('store-address-copy-button');
 const storeDirectionsButtonKey = ValueKey<String>('store-directions-button');
+const storeFavoriteButtonKey = ValueKey<String>('store-favorite-button');
+
+typedef StoreFavoriteChanged = Future<void> Function(bool isFavorite);
 
 class StoreDetailScreen extends StatefulWidget {
   const StoreDetailScreen({
     super.key,
     required this.store,
     this.externalUriLauncher = const UrlLauncherExternalUriLauncher(),
+    this.isFavorite = false,
+    this.onFavoriteChanged,
   });
 
   final StoreLocation store;
   final ExternalUriLauncher externalUriLauncher;
+  final bool isFavorite;
+  final StoreFavoriteChanged? onFavoriteChanged;
 
   @override
   State<StoreDetailScreen> createState() => _StoreDetailScreenState();
@@ -26,6 +33,22 @@ class StoreDetailScreen extends StatefulWidget {
 
 class _StoreDetailScreenState extends State<StoreDetailScreen> {
   bool _isOpeningDirections = false;
+  bool _isUpdatingFavorite = false;
+  late bool _isFavorite;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.isFavorite;
+  }
+
+  @override
+  void didUpdateWidget(StoreDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isFavorite != widget.isFavorite) {
+      _isFavorite = widget.isFavorite;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +62,16 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
           icon: const Icon(Icons.arrow_back),
         ),
         title: const Text('매장 상세'),
+        actions: [
+          IconButton(
+            key: storeFavoriteButtonKey,
+            onPressed: _isUpdatingFavorite || widget.onFavoriteChanged == null
+                ? null
+                : _toggleFavorite,
+            tooltip: _isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
+            icon: Icon(_isFavorite ? Icons.star : Icons.star_border),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -112,6 +145,38 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
       return;
     }
     _showMessage(context, '주소를 복사했습니다.');
+  }
+
+  Future<void> _toggleFavorite() async {
+    final onFavoriteChanged = widget.onFavoriteChanged;
+    if (_isUpdatingFavorite || onFavoriteChanged == null) {
+      return;
+    }
+
+    final nextValue = !_isFavorite;
+    setState(() {
+      _isUpdatingFavorite = true;
+    });
+    try {
+      await onFavoriteChanged(nextValue);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isFavorite = nextValue;
+      });
+      _showMessage(context, nextValue ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 해제했습니다.');
+    } on Object {
+      if (mounted) {
+        _showMessage(context, '즐겨찾기를 저장하지 못했습니다. 다시 시도해 주세요.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingFavorite = false;
+        });
+      }
+    }
   }
 
   Future<void> _openDirections(BuildContext context) async {

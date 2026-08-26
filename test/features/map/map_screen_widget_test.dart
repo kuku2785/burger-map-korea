@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:burger_map_korea/app/app_theme.dart';
 import 'package:burger_map_korea/core/config/app_config.dart';
+import 'package:burger_map_korea/features/favorites/domain/favorite_store_ids_store.dart';
 import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
 import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
@@ -102,6 +103,7 @@ void main() {
     required StoreMapSurfaceBuilder mapSurfaceBuilder,
     StoreCameraMover? storeCameraMover,
     ExternalUriLauncher? externalUriLauncher,
+    FavoriteStoreIdsStore? favoriteStoreIdsStore,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -118,6 +120,8 @@ void main() {
           mapSurfaceBuilder: mapSurfaceBuilder,
           storeCameraMover: storeCameraMover,
           externalUriLauncher: externalUriLauncher,
+          favoriteStoreIdsStore:
+              favoriteStoreIdsStore ?? _MemoryFavoriteStoreIdsStore(),
         ),
       ),
     );
@@ -479,6 +483,112 @@ void main() {
 
     expect(markerCount, 3);
     expect(find.byKey(storeSearchResultsKey), findsNothing);
+  });
+
+  testWidgets('combines favorites with search and burger style filters', (
+    tester,
+  ) async {
+    var markerCount = 0;
+    final favorites = _MemoryFavoriteStoreIdsStore({'alpha', 'beta'});
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      favoriteStoreIdsStore: favorites,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        markerCount = markers.length;
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.pump();
+    expect(markerCount, 2);
+
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
+    await tester.pump();
+    expect(markerCount, 1);
+    expect(find.text('Alpha Burger'), findsOneWidget);
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'beta');
+    await tester.pump();
+    expect(markerCount, 0);
+    expect(find.text('검색 결과가 없습니다.'), findsOneWidget);
+
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)));
+    await tester.pump();
+    expect(markerCount, 1);
+    expect(find.text('Beta Kitchen'), findsOneWidget);
+  });
+
+  testWidgets('restores saved favorites after rebuilding the app', (
+    tester,
+  ) async {
+    final favorites = _MemoryFavoriteStoreIdsStore();
+    Set<Marker> markers = const <Marker>{};
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      favoriteStoreIdsStore: favorites,
+      mapSurfaceBuilder: (nextMarkers, onMapTap) {
+        markers = nextMarkers;
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    markers
+        .firstWhere((marker) => marker.markerId.value == 'alpha')
+        .onTap
+        ?.call();
+    await tester.pump();
+    await tester.tap(find.byKey(storePreviewDetailsButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(storeFavoriteButtonKey));
+    await tester.pumpAndSettle();
+    expect(favorites.storeIds, {'alpha'});
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+
+    var markerCount = 0;
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      favoriteStoreIdsStore: favorites,
+      mapSurfaceBuilder: (nextMarkers, onMapTap) {
+        markerCount = nextMarkers.length;
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.pump();
+
+    expect(markerCount, 1);
+    expect(favorites.loadCalls, 2);
+    expect(find.text('Alpha Burger'), findsOneWidget);
+  });
+
+  testWidgets('ignores favorites for stores no longer in the public list', (
+    tester,
+  ) async {
+    var markerCount = 0;
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      favoriteStoreIdsStore: _MemoryFavoriteStoreIdsStore({
+        'deleted-public-store',
+      }),
+      mapSurfaceBuilder: (markers, onMapTap) {
+        markerCount = markers.length;
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.pump();
+
+    expect(markerCount, 0);
+    expect(find.text('검색 결과가 없습니다.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('shows address matches and an explicit no-results state', (
@@ -1007,5 +1117,26 @@ class _SuccessfulExternalUriLauncher implements ExternalUriLauncher {
   Future<bool> launch(Uri uri) async {
     callCount += 1;
     return true;
+  }
+}
+
+class _MemoryFavoriteStoreIdsStore implements FavoriteStoreIdsStore {
+  _MemoryFavoriteStoreIdsStore([Set<String> initialIds = const <String>{}])
+    : storeIds = Set<String>.of(initialIds);
+
+  Set<String> storeIds;
+  int loadCalls = 0;
+  int saveCalls = 0;
+
+  @override
+  Future<Set<String>> load() async {
+    loadCalls += 1;
+    return Set<String>.unmodifiable(storeIds);
+  }
+
+  @override
+  Future<void> save(Set<String> storeIds) async {
+    saveCalls += 1;
+    this.storeIds = Set<String>.of(storeIds);
   }
 }

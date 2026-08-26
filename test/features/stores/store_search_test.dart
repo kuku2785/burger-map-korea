@@ -73,4 +73,51 @@ void main() {
       isEmpty,
     );
   });
+
+  test('combines favorites, text, and burger style with AND', () {
+    final mixedStores = [
+      stores.first,
+      StoreLocation(
+        id: 'smash',
+        name: 'Smash House',
+        address: 'Seoul Yongsan Alpha-ro 2',
+        latitude: 37.54,
+        longitude: 127.0,
+        burgerStyle: 'smash',
+      ),
+    ];
+
+    expect(
+      filterStoreLocations(
+        mixedStores,
+        'alpha-ro',
+        burgerStyle: BurgerStyle.smash,
+        favoriteStoreIds: const {'smash'},
+        favoritesOnly: true,
+      ),
+      [mixedStores.last],
+    );
+    expect(
+      filterStoreLocations(
+        mixedStores,
+        'alpha-ro',
+        burgerStyle: BurgerStyle.smash,
+        favoriteStoreIds: const {'alpha'},
+        favoritesOnly: true,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('ignores favorite ids that are not in the loaded public stores', () {
+    expect(
+      filterStoreLocations(
+        stores,
+        '',
+        favoriteStoreIds: const {'deleted-store-id'},
+        favoritesOnly: true,
+      ),
+      isEmpty,
+    );
+  });
 }

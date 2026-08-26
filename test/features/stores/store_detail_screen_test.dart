@@ -30,6 +30,8 @@ void main() {
   Widget detailApp(
     StoreLocation store, {
     ExternalUriLauncher? externalUriLauncher,
+    bool isFavorite = false,
+    StoreFavoriteChanged? onFavoriteChanged,
     double textScale = 1,
   }) {
     return MaterialApp(
@@ -42,12 +44,13 @@ void main() {
           child: child!,
         );
       },
-      home: externalUriLauncher == null
-          ? StoreDetailScreen(store: store)
-          : StoreDetailScreen(
-              store: store,
-              externalUriLauncher: externalUriLauncher,
-            ),
+      home: StoreDetailScreen(
+        store: store,
+        externalUriLauncher:
+            externalUriLauncher ?? const UrlLauncherExternalUriLauncher(),
+        isFavorite: isFavorite,
+        onFavoriteChanged: onFavoriteChanged,
+      ),
     );
   }
 
@@ -111,6 +114,33 @@ void main() {
 
     expect(copiedText, selectedStore.address);
     expect(find.text('주소를 복사했습니다.'), findsOneWidget);
+  });
+
+  testWidgets('adds and removes a store favorite from the detail screen', (
+    tester,
+  ) async {
+    final changes = <bool>[];
+    await tester.pumpWidget(
+      detailApp(
+        store(),
+        onFavoriteChanged: (isFavorite) async {
+          changes.add(isFavorite);
+        },
+      ),
+    );
+
+    expect(find.byIcon(Icons.star_border), findsOneWidget);
+    await tester.tap(find.byKey(storeFavoriteButtonKey));
+    await tester.pumpAndSettle();
+    expect(changes, [true]);
+    expect(find.byIcon(Icons.star), findsOneWidget);
+    expect(find.text('즐겨찾기에 추가했습니다.'), findsOneWidget);
+
+    await tester.tap(find.byKey(storeFavoriteButtonKey));
+    await tester.pumpAndSettle();
+    expect(changes, [true, false]);
+    expect(find.byIcon(Icons.star_border), findsOneWidget);
+    expect(find.text('즐겨찾기에서 해제했습니다.'), findsOneWidget);
   });
 
   testWidgets(

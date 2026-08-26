@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/config/app_config.dart';
+import '../features/favorites/domain/favorite_store_ids_store.dart';
 import '../features/map/presentation/map_screen.dart';
 import 'app_theme.dart';
 
@@ -9,10 +10,12 @@ class BurgerMapApp extends StatelessWidget {
     super.key,
     required this.config,
     this.supabaseStoreLoader,
+    this.favoriteStoreIdsStore,
   });
 
   final AppConfig config;
   final SupabaseStoreLoader? supabaseStoreLoader;
+  final FavoriteStoreIdsStore? favoriteStoreIdsStore;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +23,11 @@ class BurgerMapApp extends StatelessWidget {
       title: 'Burger Map Korea',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: MapScreen(config: config, supabaseStoreLoader: supabaseStoreLoader),
+      home: MapScreen(
+        config: config,
+        supabaseStoreLoader: supabaseStoreLoader,
+        favoriteStoreIdsStore: favoriteStoreIdsStore,
+      ),
     );
   }
 }

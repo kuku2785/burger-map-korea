@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../favorites/data/shared_preferences_favorite_store_ids_store.dart';
+import '../../favorites/domain/favorite_store_ids_store.dart';
 import '../../stores/data/external_uri_launcher.dart';
 import '../../stores/data/itaewon_store_locations.dart';
 import '../../stores/data/staging_store_locations_loader.dart';
@@ -26,6 +28,7 @@ const storeSearchFieldKey = ValueKey<String>('store-search-field');
 const storeSearchClearButtonKey = ValueKey<String>('store-search-clear-button');
 const storeSearchResultsKey = ValueKey<String>('store-search-results');
 const burgerStyleAllFilterKey = ValueKey<String>('burger-style-filter-all');
+const favoritesOnlyFilterKey = ValueKey<String>('favorites-only-filter');
 
 ValueKey<String> burgerStyleFilterKey(BurgerStyle style) {
   return ValueKey<String>('burger-style-filter-${style.code}');
@@ -41,6 +44,7 @@ class MapScreen extends StatefulWidget {
     this.storeCameraMover,
     this.mapSurfaceBuilder,
     this.externalUriLauncher,
+    this.favoriteStoreIdsStore,
   });
 
   final AppConfig config;
@@ -50,6 +54,7 @@ class MapScreen extends StatefulWidget {
   final StoreCameraMover? storeCameraMover;
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
   final ExternalUriLauncher? externalUriLauncher;
+  final FavoriteStoreIdsStore? favoriteStoreIdsStore;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -64,9 +69,13 @@ class _MapScreenState extends State<MapScreen> {
   final Completer<GoogleMapController> _controller = Completer();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  late final FavoriteStoreIdsStore _favoriteStoreIdsStore;
   StoreLocation? _selectedStore;
   BurgerStyle? _selectedBurgerStyle;
+  Set<String> _favoriteStoreIds = const <String>{};
   String _searchQuery = '';
+  bool _favoritesOnly = false;
+  bool _favoritesLoaded = false;
   bool _isMapReady = false;
   String _cameraStatus = '카메라 이동 대기 중';
   CameraPosition _initialCameraPosition = _pilotCameraPosition;
@@ -78,7 +87,11 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _favoriteStoreIdsStore =
+        widget.favoriteStoreIdsStore ??
+        SharedPreferencesFavoriteStoreIdsStore();
     _mapError = widget.initialMapError;
+    _loadFavoriteStoreIds();
     _initializeStores();
   }
 
@@ -173,6 +186,8 @@ class _MapScreenState extends State<MapScreen> {
       stores,
       _searchQuery,
       burgerStyle: _selectedBurgerStyle,
+      favoriteStoreIds: _favoriteStoreIds,
+      favoritesOnly: _favoritesOnly,
     );
     final markers = buildStoreMarkers(visibleStores, _selectStore);
     final mapSurfaceBuilder = widget.mapSurfaceBuilder;
@@ -222,14 +237,18 @@ class _MapScreenState extends State<MapScreen> {
                 results: visibleStores,
                 availableStyles: availableStyles,
                 selectedBurgerStyle: _selectedBurgerStyle,
+                favoritesOnly: _favoritesOnly,
+                favoritesLoaded: _favoritesLoaded,
                 onChanged: _handleSearchChanged,
                 onClear: _clearSearch,
                 onSelected: _selectSearchResult,
                 onBurgerStyleSelected: _handleBurgerStyleChanged,
+                onFavoritesOnlyChanged: _handleFavoritesOnlyChanged,
               ),
               if (widget.config.showsDevelopmentDiagnostics &&
                   normalizeStoreSearchText(_searchQuery).isEmpty &&
-                  _selectedBurgerStyle == null) ...[
+                  _selectedBurgerStyle == null &&
+                  !_favoritesOnly) ...[
                 const SizedBox(height: 8),
                 _CameraStatusCard(
                   status: _cameraStatus,
@@ -302,6 +321,27 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  Future<void> _loadFavoriteStoreIds() async {
+    try {
+      final storeIds = await _favoriteStoreIdsStore.load();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _favoriteStoreIds = storeIds;
+        _favoritesLoaded = true;
+      });
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _favoriteStoreIds = const <String>{};
+        _favoritesLoaded = true;
+      });
+    }
+  }
+
   void _selectStore(StoreLocation store) {
     setState(() {
       _selectedStore = store;
@@ -320,6 +360,8 @@ class _MapScreenState extends State<MapScreen> {
       stores,
       query,
       burgerStyle: _selectedBurgerStyle,
+      favoriteStoreIds: _favoriteStoreIds,
+      favoritesOnly: _favoritesOnly,
     ).map((store) => store.id).toSet();
 
     setState(() {
@@ -337,10 +379,31 @@ class _MapScreenState extends State<MapScreen> {
       stores,
       _searchQuery,
       burgerStyle: burgerStyle,
+      favoriteStoreIds: _favoriteStoreIds,
+      favoritesOnly: _favoritesOnly,
     ).map((store) => store.id).toSet();
 
     setState(() {
       _selectedBurgerStyle = burgerStyle;
+      if (_selectedStore != null &&
+          !visibleStoreIds.contains(_selectedStore!.id)) {
+        _selectedStore = null;
+      }
+    });
+  }
+
+  void _handleFavoritesOnlyChanged(bool favoritesOnly) {
+    final stores = _stores ?? const <StoreLocation>[];
+    final visibleStoreIds = filterStoreLocations(
+      stores,
+      _searchQuery,
+      burgerStyle: _selectedBurgerStyle,
+      favoriteStoreIds: _favoriteStoreIds,
+      favoritesOnly: favoritesOnly,
+    ).map((store) => store.id).toSet();
+
+    setState(() {
+      _favoritesOnly = favoritesOnly;
       if (_selectedStore != null &&
           !visibleStoreIds.contains(_selectedStore!.id)) {
         _selectedStore = null;
@@ -378,13 +441,49 @@ class _MapScreenState extends State<MapScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (context) => externalUriLauncher == null
-            ? StoreDetailScreen(store: store)
+            ? StoreDetailScreen(
+                store: store,
+                isFavorite: _favoriteStoreIds.contains(store.id),
+                onFavoriteChanged: (isFavorite) =>
+                    _setStoreFavorite(store, isFavorite),
+              )
             : StoreDetailScreen(
                 store: store,
                 externalUriLauncher: externalUriLauncher,
+                isFavorite: _favoriteStoreIds.contains(store.id),
+                onFavoriteChanged: (isFavorite) =>
+                    _setStoreFavorite(store, isFavorite),
               ),
       ),
     );
+  }
+
+  Future<void> _setStoreFavorite(StoreLocation store, bool isFavorite) async {
+    final nextStoreIds = Set<String>.of(_favoriteStoreIds);
+    if (isFavorite) {
+      nextStoreIds.add(store.id);
+    } else {
+      nextStoreIds.remove(store.id);
+    }
+    await _favoriteStoreIdsStore.save(nextStoreIds);
+    if (!mounted) {
+      return;
+    }
+
+    final visibleStoreIds = filterStoreLocations(
+      _stores ?? const <StoreLocation>[],
+      _searchQuery,
+      burgerStyle: _selectedBurgerStyle,
+      favoriteStoreIds: nextStoreIds,
+      favoritesOnly: _favoritesOnly,
+    ).map((item) => item.id).toSet();
+    setState(() {
+      _favoriteStoreIds = Set<String>.unmodifiable(nextStoreIds);
+      if (_selectedStore != null &&
+          !visibleStoreIds.contains(_selectedStore!.id)) {
+        _selectedStore = null;
+      }
+    });
   }
 
   void _applyLoadedStores(List<StoreLocation> stores) {
@@ -420,10 +519,13 @@ class _StoreSearchPanel extends StatelessWidget {
     required this.results,
     required this.availableStyles,
     required this.selectedBurgerStyle,
+    required this.favoritesOnly,
+    required this.favoritesLoaded,
     required this.onChanged,
     required this.onClear,
     required this.onSelected,
     required this.onBurgerStyleSelected,
+    required this.onFavoritesOnlyChanged,
   });
 
   final TextEditingController controller;
@@ -432,15 +534,19 @@ class _StoreSearchPanel extends StatelessWidget {
   final List<StoreLocation> results;
   final List<BurgerStyle> availableStyles;
   final BurgerStyle? selectedBurgerStyle;
+  final bool favoritesOnly;
+  final bool favoritesLoaded;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   final ValueChanged<StoreLocation> onSelected;
   final ValueChanged<BurgerStyle?> onBurgerStyleSelected;
+  final ValueChanged<bool> onFavoritesOnlyChanged;
 
   @override
   Widget build(BuildContext context) {
     final hasQuery = normalizeStoreSearchText(query).isNotEmpty;
-    final hasActiveCriteria = hasQuery || selectedBurgerStyle != null;
+    final hasActiveCriteria =
+        hasQuery || selectedBurgerStyle != null || favoritesOnly;
     final maximumResultsHeight = math.min(
       220.0,
       math.max(96.0, MediaQuery.sizeOf(context).height * 0.28),
@@ -488,10 +594,30 @@ class _StoreSearchPanel extends StatelessWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              itemCount: availableStyles.length + 1,
+              itemCount: availableStyles.length + 2,
               separatorBuilder: (context, index) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
-                final style = index == 0 ? null : availableStyles[index - 1];
+                if (index == 0) {
+                  return Semantics(
+                    button: true,
+                    selected: favoritesOnly,
+                    label: '즐겨찾기 매장만 보기',
+                    child: FilterChip(
+                      key: favoritesOnlyFilterKey,
+                      avatar: Icon(
+                        favoritesOnly ? Icons.star : Icons.star_border,
+                        size: 18,
+                      ),
+                      label: const Text('즐겨찾기'),
+                      selected: favoritesOnly,
+                      onSelected: favoritesLoaded
+                          ? onFavoritesOnlyChanged
+                          : null,
+                    ),
+                  );
+                }
+
+                final style = index == 1 ? null : availableStyles[index - 2];
                 final label = style?.displayLabel ?? '전체';
                 final isSelected = style == selectedBurgerStyle;
 

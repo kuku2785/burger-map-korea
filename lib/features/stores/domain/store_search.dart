@@ -9,9 +9,11 @@ List<StoreLocation> filterStoreLocations(
   List<StoreLocation> stores,
   String query, {
   BurgerStyle? burgerStyle,
+  Set<String> favoriteStoreIds = const <String>{},
+  bool favoritesOnly = false,
 }) {
   final normalizedQuery = normalizeStoreSearchText(query);
-  if (normalizedQuery.isEmpty && burgerStyle == null) {
+  if (normalizedQuery.isEmpty && burgerStyle == null && !favoritesOnly) {
     return List<StoreLocation>.unmodifiable(stores);
   }
 
@@ -24,7 +26,9 @@ List<StoreLocation> filterStoreLocations(
       final matchesBurgerStyle =
           burgerStyle == null ||
           BurgerStyle.parse(store.burgerStyle) == burgerStyle;
-      return matchesQuery && matchesBurgerStyle;
+      final matchesFavorite =
+          !favoritesOnly || favoriteStoreIds.contains(store.id);
+      return matchesQuery && matchesBurgerStyle && matchesFavorite;
     }),
   );
 }
