@@ -30,13 +30,7 @@ python scripts/data/extract_burger_candidates.py `
 테스트 데이터는 실제 매장이 아닌 가상 이름과 가상 주소만 사용한다.
 
 ```powershell
-python -m unittest discover -s tests/data -p "test_*.py" -v
-```
-
-현재 PC처럼 Python이 PATH에 없다면 설치된 인터프리터의 전체 경로를 사용한다.
-
-```powershell
-C:\Users\jeong\anaconda3\python.exe -m unittest discover -s tests/data -p "test_*.py" -v
+C:\Users\jeong\anaconda3\python.exe -m pytest tests/data
 ```
 
 ## 판정 원칙
@@ -165,3 +159,43 @@ SQL은 신규 UUID가 DB에 0개일 때만 9행을 INSERT하고, 영향 행 수�
 중단한다. 기존 공개 매장은 INSERT하지 않으며 UPDATE, DELETE, UPSERT, RPC,
 `ON CONFLICT`를 사용하지 않는다. 생성기는 SQL을 실행하거나 Supabase에
 접속하지 않는다.
+
+## Phase 6B-1 공개 매장 25곳 확대 검수표
+
+현재 공개 10곳을 제외한 pending 14곳과 hold 4곳을 안정 ID로 결합하고, 로컬 근거
+JSON의 안전 판정을 검증해 25곳 확대 검수표를 만든다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\build_25_store_expansion_review.py
+```
+
+입력 CSV는 수정하지 않는다. 근거 JSON과 생성 CSV는 `data/review/`의 Git 제외 파일이며,
+생성기는 행 번호를 식별자로 사용하거나 `verified`, `rejected`, `isActive=true`를 만들지
+않는다. 승인 제안은 최대 15곳이고, 부족분은 현재 공개 수와 안전 게이트 통과 수로만
+계산한다. 이 명령은 SQL 생성, Supabase 접속, Flutter asset 변경을 수행하지 않는다.
+
+## Phase 6B 승인 반영과 13행 게시 SQL
+
+사용자가 안정 `reviewItemId`로 승인한 13곳은 Git에서 제외되는
+`data/review/yongsan_burger_25_store_expansion_approvals.json`에 기록한다. 일반 후보는
+`storeId + candidateId + 이름 + 주소 + 좌표`, hold 해소 후보는 사용 가능한 원천 ID와
+hold 자료까지 교차 검증한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\apply_25_store_expansion_approvals.py
+```
+
+승인 적용기는 기존 공개 10행과 미승인 pending 2행을 변경하지 않는다. hold 해소 후보의
+내부 UUID는 최초 적용 때 한 번 생성해 게시 검수표에 저장하고, 재실행 시 UUID와
+`verifiedAt`을 보존한다. `sourceAsOf`는 Phase 6B 근거 검수표의 실제 기준일을 사용한다.
+
+```powershell
+C:\Users\jeong\anaconda3\python.exe scripts\data\generate_25_store_expansion_sql.py
+```
+
+출력 `data/staging/yongsan_burger_store_publish_25_expansion.sql`은 Git에서 제외된다. 기존
+공개 10곳을 제외한 신규 승인 13곳만 INSERT하며, 실행 전 10행·실행 후 23행, 신규 UUID,
+신규 값 일치와 최종 스타일 분포를 transaction 안에서 검증한다. 동일 SQL 재실행은
+사전 조건에서 실패한다. 출력 SQL 파일이 이미 있으면 현재 생성 결과와 내용을 비교한다.
+내용이 같으면 정상 통과하고, 다르면 기존 파일을 덮어쓰지 않고 중단한다. 두 스크립트
+모두 Supabase에 접속하거나 SQL을 실행하지 않는다.
