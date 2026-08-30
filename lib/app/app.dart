@@ -11,11 +11,13 @@ class BurgerMapApp extends StatelessWidget {
     required this.config,
     this.supabaseStoreLoader,
     this.favoriteStoreIdsStore,
+    this.mapSurfaceBuilder,
   });
 
   final AppConfig config;
   final SupabaseStoreLoader? supabaseStoreLoader;
   final FavoriteStoreIdsStore? favoriteStoreIdsStore;
+  final StoreMapSurfaceBuilder? mapSurfaceBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +29,7 @@ class BurgerMapApp extends StatelessWidget {
         config: config,
         supabaseStoreLoader: supabaseStoreLoader,
         favoriteStoreIdsStore: favoriteStoreIdsStore,
+        mapSurfaceBuilder: mapSurfaceBuilder,
       ),
     );
   }
