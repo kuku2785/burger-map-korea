@@ -22,6 +22,8 @@ typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
 typedef SupabaseStoreLoader = Future<List<StoreLocation>> Function();
 typedef StoreCameraMover = Future<void> Function(StoreLocation store);
 typedef MapZoomMover = Future<void> Function(double zoom);
+typedef ClusterCameraMover =
+    Future<void> Function(LatLngBounds bounds, double padding);
 typedef StoreMapSurfaceBuilder =
     Widget Function(Set<Marker> markers, ValueChanged<LatLng> onMapTap);
 
@@ -36,6 +38,8 @@ const storeDataReadyStatusKey = ValueKey<String>('store-data-ready-status');
 const minimumMapZoom = 3.0;
 const maximumMapZoom = 20.0;
 const mapZoomStep = 1.0;
+const clusterBoundsPadding = 72.0;
+const storeMarkerClusterManagerId = ClusterManagerId('public-store-markers');
 
 ValueKey<String> burgerStyleFilterKey(BurgerStyle style) {
   return ValueKey<String>('burger-style-filter-${style.code}');
@@ -50,6 +54,8 @@ class MapScreen extends StatefulWidget {
     this.supabaseStoreLoader,
     this.storeCameraMover,
     this.mapZoomMover,
+    this.clusterCameraMover,
+    this.onClusterManagerReady,
     this.mapSurfaceBuilder,
     this.externalUriLauncher,
     this.favoriteStoreIdsStore,
@@ -61,6 +67,8 @@ class MapScreen extends StatefulWidget {
   final SupabaseStoreLoader? supabaseStoreLoader;
   final StoreCameraMover? storeCameraMover;
   final MapZoomMover? mapZoomMover;
+  final ClusterCameraMover? clusterCameraMover;
+  final ValueChanged<ClusterManager>? onClusterManagerReady;
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
   final ExternalUriLauncher? externalUriLauncher;
   final FavoriteStoreIdsStore? favoriteStoreIdsStore;
@@ -79,6 +87,7 @@ class _MapScreenState extends State<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   late final FavoriteStoreIdsStore _favoriteStoreIdsStore;
+  late final ClusterManager _storeMarkerClusterManager;
   StoreLocation? _selectedStore;
   BurgerStyle? _selectedBurgerStyle;
   Set<String> _favoriteStoreIds = const <String>{};
@@ -87,6 +96,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _favoritesLoaded = false;
   bool _isMapReady = false;
   bool _isChangingZoom = false;
+  bool _isMovingToCluster = false;
   String _cameraStatus = '카메라 이동 대기 중';
   CameraPosition _initialCameraPosition = _pilotCameraPosition;
   CameraPosition _lastCameraPosition = _pilotCameraPosition;
@@ -97,6 +107,11 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _storeMarkerClusterManager = ClusterManager(
+      clusterManagerId: storeMarkerClusterManagerId,
+      onClusterTap: _handleClusterTap,
+    );
+    widget.onClusterManagerReady?.call(_storeMarkerClusterManager);
     _favoriteStoreIdsStore =
         widget.favoriteStoreIdsStore ??
         SharedPreferencesFavoriteStoreIdsStore();
@@ -215,6 +230,7 @@ class _MapScreenState extends State<MapScreen> {
               ? GoogleMap(
                   initialCameraPosition: _initialCameraPosition,
                   markers: markers,
+                  clusterManagers: <ClusterManager>{_storeMarkerClusterManager},
                   onMapCreated: _handleMapCreated,
                   onTap: _handleMapTap,
                   onCameraMoveStarted: () {
@@ -489,6 +505,42 @@ class _MapScreenState extends State<MapScreen> {
     await controller.animateCamera(
       CameraUpdate.newLatLngZoom(LatLng(store.latitude, store.longitude), 16),
     );
+  }
+
+  Future<void> _handleClusterTap(Cluster cluster) async {
+    if (!mounted || _isMovingToCluster) {
+      return;
+    }
+
+    _isMovingToCluster = true;
+    if (_selectedStore != null) {
+      setState(() {
+        _selectedStore = null;
+      });
+    }
+
+    try {
+      final clusterCameraMover = widget.clusterCameraMover;
+      if (clusterCameraMover != null) {
+        await clusterCameraMover(cluster.bounds, clusterBoundsPadding);
+        return;
+      }
+      if (!_controller.isCompleted || !mounted) {
+        return;
+      }
+
+      final controller = await _controller.future;
+      if (!mounted) {
+        return;
+      }
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(cluster.bounds, clusterBoundsPadding),
+      );
+    } on Object {
+      // Cluster camera movement is best-effort during map lifecycle changes.
+    } finally {
+      _isMovingToCluster = false;
+    }
   }
 
   Future<void> _changeMapZoom(double delta) async {
@@ -935,6 +987,7 @@ Set<Marker> buildStoreMarkers(
   return stores.map((store) {
     return Marker(
       markerId: MarkerId(store.id),
+      clusterManagerId: storeMarkerClusterManagerId,
       position: LatLng(store.latitude, store.longitude),
       infoWindow: InfoWindow(title: store.name),
       onTap: () => onSelected(store),
