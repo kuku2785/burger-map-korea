@@ -21,6 +21,7 @@ import 'store_preview_card.dart';
 typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
 typedef SupabaseStoreLoader = Future<List<StoreLocation>> Function();
 typedef StoreCameraMover = Future<void> Function(StoreLocation store);
+typedef MapZoomMover = Future<void> Function(double zoom);
 typedef StoreMapSurfaceBuilder =
     Widget Function(Set<Marker> markers, ValueChanged<LatLng> onMapTap);
 
@@ -29,6 +30,12 @@ const storeSearchClearButtonKey = ValueKey<String>('store-search-clear-button');
 const storeSearchResultsKey = ValueKey<String>('store-search-results');
 const burgerStyleAllFilterKey = ValueKey<String>('burger-style-filter-all');
 const favoritesOnlyFilterKey = ValueKey<String>('favorites-only-filter');
+const mapZoomInButtonKey = ValueKey<String>('map-zoom-in-button');
+const mapZoomOutButtonKey = ValueKey<String>('map-zoom-out-button');
+const storeDataReadyStatusKey = ValueKey<String>('store-data-ready-status');
+const minimumMapZoom = 3.0;
+const maximumMapZoom = 20.0;
+const mapZoomStep = 1.0;
 
 ValueKey<String> burgerStyleFilterKey(BurgerStyle style) {
   return ValueKey<String>('burger-style-filter-${style.code}');
@@ -42,6 +49,7 @@ class MapScreen extends StatefulWidget {
     this.stagingStoreLoader,
     this.supabaseStoreLoader,
     this.storeCameraMover,
+    this.mapZoomMover,
     this.mapSurfaceBuilder,
     this.externalUriLauncher,
     this.favoriteStoreIdsStore,
@@ -52,6 +60,7 @@ class MapScreen extends StatefulWidget {
   final StagingStoreLoader? stagingStoreLoader;
   final SupabaseStoreLoader? supabaseStoreLoader;
   final StoreCameraMover? storeCameraMover;
+  final MapZoomMover? mapZoomMover;
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
   final ExternalUriLauncher? externalUriLauncher;
   final FavoriteStoreIdsStore? favoriteStoreIdsStore;
@@ -77,6 +86,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _favoritesOnly = false;
   bool _favoritesLoaded = false;
   bool _isMapReady = false;
+  bool _isChangingZoom = false;
   String _cameraStatus = '카메라 이동 대기 중';
   CameraPosition _initialCameraPosition = _pilotCameraPosition;
   CameraPosition _lastCameraPosition = _pilotCameraPosition;
@@ -191,6 +201,12 @@ class _MapScreenState extends State<MapScreen> {
     );
     final markers = buildStoreMarkers(visibleStores, _selectStore);
     final mapSurfaceBuilder = widget.mapSurfaceBuilder;
+    final currentZoom = _lastCameraPosition.zoom.clamp(
+      minimumMapZoom,
+      maximumMapZoom,
+    );
+    final canChangeZoom =
+        !_isChangingZoom && (_isMapReady || widget.mapZoomMover != null);
 
     return Stack(
       children: [
@@ -223,6 +239,15 @@ class _MapScreenState extends State<MapScreen> {
         ),
         if (!_isMapReady && mapSurfaceBuilder == null)
           const _MapLoadingOverlay(),
+        if (_isMapReady || mapSurfaceBuilder != null)
+          Positioned(
+            left: 0,
+            top: 0,
+            child: _ScreenReaderStatus(
+              key: storeDataReadyStatusKey,
+              message: '공개 매장 ${stores.length}개를 불러왔습니다.',
+            ),
+          ),
         Positioned(
           left: 16,
           right: 16,
@@ -258,14 +283,44 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
         ),
-        if (_selectedStore != null)
+        if (_selectedStore == null)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: _MapZoomControls(
+              currentZoom: currentZoom.toDouble(),
+              onZoomIn: canChangeZoom && currentZoom < maximumMapZoom
+                  ? () => _changeMapZoom(mapZoomStep)
+                  : null,
+              onZoomOut: canChangeZoom && currentZoom > minimumMapZoom
+                  ? () => _changeMapZoom(-mapZoomStep)
+                  : null,
+            ),
+          )
+        else
           Positioned(
             left: 16,
             right: 16,
             bottom: 16,
-            child: StorePreviewCard(
-              store: _selectedStore!,
-              onViewDetails: () => _openStoreDetails(_selectedStore!),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _MapZoomControls(
+                  currentZoom: currentZoom.toDouble(),
+                  onZoomIn: canChangeZoom && currentZoom < maximumMapZoom
+                      ? () => _changeMapZoom(mapZoomStep)
+                      : null,
+                  onZoomOut: canChangeZoom && currentZoom > minimumMapZoom
+                      ? () => _changeMapZoom(-mapZoomStep)
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                StorePreviewCard(
+                  store: _selectedStore!,
+                  onViewDetails: () => _openStoreDetails(_selectedStore!),
+                ),
+              ],
             ),
           ),
       ],
@@ -436,6 +491,60 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Future<void> _changeMapZoom(double delta) async {
+    if (_isChangingZoom) {
+      return;
+    }
+
+    final currentZoom = _lastCameraPosition.zoom.clamp(
+      minimumMapZoom,
+      maximumMapZoom,
+    );
+    final targetZoom = (currentZoom + delta).clamp(
+      minimumMapZoom,
+      maximumMapZoom,
+    );
+    if (targetZoom == currentZoom) {
+      return;
+    }
+
+    setState(() {
+      _isChangingZoom = true;
+    });
+    try {
+      final mapZoomMover = widget.mapZoomMover;
+      if (mapZoomMover != null) {
+        await mapZoomMover(targetZoom.toDouble());
+      } else {
+        if (!_controller.isCompleted) {
+          return;
+        }
+        final controller = await _controller.future;
+        await controller.animateCamera(
+          CameraUpdate.zoomTo(targetZoom.toDouble()),
+        );
+      }
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastCameraPosition = CameraPosition(
+          target: _lastCameraPosition.target,
+          zoom: targetZoom.toDouble(),
+          tilt: _lastCameraPosition.tilt,
+          bearing: _lastCameraPosition.bearing,
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChangingZoom = false;
+        });
+      }
+    }
+  }
+
   Future<void> _openStoreDetails(StoreLocation store) async {
     final externalUriLauncher = widget.externalUriLauncher;
     await Navigator.of(context).push<void>(
@@ -547,6 +656,10 @@ class _StoreSearchPanel extends StatelessWidget {
     final hasQuery = normalizeStoreSearchText(query).isNotEmpty;
     final hasActiveCriteria =
         hasQuery || selectedBurgerStyle != null || favoritesOnly;
+    final emptyResultsMessage =
+        favoritesOnly && !hasQuery && selectedBurgerStyle == null
+        ? '즐겨찾기한 매장이 없습니다.'
+        : '검색 결과가 없습니다.';
     final maximumResultsHeight = math.min(
       220.0,
       math.max(96.0, MediaQuery.sizeOf(context).height * 0.28),
@@ -559,27 +672,30 @@ class _StoreSearchPanel extends StatelessWidget {
           elevation: 4,
           borderRadius: BorderRadius.circular(8),
           clipBehavior: Clip.antiAlias,
-          child: TextField(
-            key: storeSearchFieldKey,
-            controller: controller,
-            focusNode: focusNode,
-            onChanged: onChanged,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              labelText: '매장 검색',
-              hintText: '매장명 또는 주소',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: hasQuery
-                  ? IconButton(
-                      key: storeSearchClearButtonKey,
-                      onPressed: onClear,
-                      tooltip: '검색어 지우기',
-                      icon: const Icon(Icons.clear),
-                    )
-                  : null,
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surface,
-              border: InputBorder.none,
+          child: Semantics(
+            label: '매장명 또는 주소 검색',
+            child: TextField(
+              key: storeSearchFieldKey,
+              controller: controller,
+              focusNode: focusNode,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                label: const ExcludeSemantics(child: Text('매장 검색')),
+                hint: const ExcludeSemantics(child: Text('매장명 또는 주소')),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: hasQuery
+                    ? IconButton(
+                        key: storeSearchClearButtonKey,
+                        onPressed: onClear,
+                        tooltip: '검색어 지우기',
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                border: InputBorder.none,
+              ),
             ),
           ),
         ),
@@ -600,19 +716,25 @@ class _StoreSearchPanel extends StatelessWidget {
                 if (index == 0) {
                   return Semantics(
                     button: true,
+                    enabled: favoritesLoaded,
                     selected: favoritesOnly,
                     label: '즐겨찾기 매장만 보기',
-                    child: FilterChip(
-                      key: favoritesOnlyFilterKey,
-                      avatar: Icon(
-                        favoritesOnly ? Icons.star : Icons.star_border,
-                        size: 18,
+                    onTap: favoritesLoaded
+                        ? () => onFavoritesOnlyChanged(!favoritesOnly)
+                        : null,
+                    child: ExcludeSemantics(
+                      child: FilterChip(
+                        key: favoritesOnlyFilterKey,
+                        avatar: Icon(
+                          favoritesOnly ? Icons.star : Icons.star_border,
+                          size: 18,
+                        ),
+                        label: const Text('즐겨찾기'),
+                        selected: favoritesOnly,
+                        onSelected: favoritesLoaded
+                            ? onFavoritesOnlyChanged
+                            : null,
                       ),
-                      label: const Text('즐겨찾기'),
-                      selected: favoritesOnly,
-                      onSelected: favoritesLoaded
-                          ? onFavoritesOnlyChanged
-                          : null,
                     ),
                   );
                 }
@@ -625,13 +747,16 @@ class _StoreSearchPanel extends StatelessWidget {
                   button: true,
                   selected: isSelected,
                   label: '버거 스타일 $label 필터',
-                  child: ChoiceChip(
-                    key: style == null
-                        ? burgerStyleAllFilterKey
-                        : burgerStyleFilterKey(style),
-                    label: Text(label),
-                    selected: isSelected,
-                    onSelected: (_) => onBurgerStyleSelected(style),
+                  onTap: () => onBurgerStyleSelected(style),
+                  child: ExcludeSemantics(
+                    child: ChoiceChip(
+                      key: style == null
+                          ? burgerStyleAllFilterKey
+                          : burgerStyleFilterKey(style),
+                      label: Text(label),
+                      selected: isSelected,
+                      onSelected: (_) => onBurgerStyleSelected(style),
+                    ),
                   ),
                 );
               },
@@ -649,41 +774,156 @@ class _StoreSearchPanel extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maximumResultsHeight),
               child: results.isEmpty
-                  ? const SizedBox(
-                      height: 64,
-                      child: Center(child: Text('검색 결과가 없습니다.')),
+                  ? _LiveRegionMessage(
+                      message: emptyResultsMessage,
+                      child: SizedBox(
+                        height: 64,
+                        child: Center(child: Text(emptyResultsMessage)),
+                      ),
                     )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      itemCount: results.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final store = results[index];
-                        return ListTile(
-                          key: ValueKey<String>(
-                            'store-search-result-${store.id}',
-                          ),
-                          minTileHeight: 56,
-                          title: Text(
-                            store.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            store.address,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () => onSelected(store),
-                        );
-                      },
+                  : Semantics(
+                      container: true,
+                      explicitChildNodes: true,
+                      liveRegion: true,
+                      label: '검색 결과 ${results.length}개',
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: results.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final store = results[index];
+                          return ListTile(
+                            key: ValueKey<String>(
+                              'store-search-result-${store.id}',
+                            ),
+                            minTileHeight: 56,
+                            title: Text(
+                              store.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              store.address,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: () => onSelected(store),
+                          );
+                        },
+                      ),
                     ),
             ),
           ),
         ],
       ],
+    );
+  }
+}
+
+class _MapZoomControls extends StatelessWidget {
+  const _MapZoomControls({
+    required this.currentZoom,
+    required this.onZoomIn,
+    required this.onZoomOut,
+  });
+
+  final double currentZoom;
+  final VoidCallback? onZoomIn;
+  final VoidCallback? onZoomOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
+      color: Theme.of(context).colorScheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _MapZoomButton(
+            key: mapZoomInButtonKey,
+            label: '지도 확대',
+            icon: Icons.add,
+            onPressed: currentZoom < maximumMapZoom ? onZoomIn : null,
+          ),
+          const SizedBox(width: 36, child: Divider(height: 1)),
+          _MapZoomButton(
+            key: mapZoomOutButtonKey,
+            label: '지도 축소',
+            icon: Icons.remove,
+            onPressed: currentZoom > minimumMapZoom ? onZoomOut : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapZoomButton extends StatelessWidget {
+  const _MapZoomButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      label: label,
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: IconButton(
+          onPressed: onPressed,
+          tooltip: label,
+          constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+          icon: Icon(icon),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveRegionMessage extends StatelessWidget {
+  const _LiveRegionMessage({required this.message, required this.child});
+
+  final String message;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: message,
+      child: ExcludeSemantics(child: child),
+    );
+  }
+}
+
+class _ScreenReaderStatus extends StatelessWidget {
+  const _ScreenReaderStatus({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        label: message,
+        child: const SizedBox(width: 1, height: 1),
+      ),
     );
   }
 }
@@ -794,7 +1034,12 @@ class StoreDataLoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    return const Center(
+      child: _LiveRegionMessage(
+        message: '공개 매장을 불러오는 중입니다.',
+        child: CircularProgressIndicator(),
+      ),
+    );
   }
 }
 
@@ -815,10 +1060,13 @@ class MissingSupabaseConfigView extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 16),
-            Text(
-              '서비스 설정을 확인할 수 없습니다.',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
+            _LiveRegionMessage(
+              message: '서비스 설정을 확인할 수 없습니다.',
+              child: Text(
+                '서비스 설정을 확인할 수 없습니다.',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
         ),
@@ -844,10 +1092,13 @@ class StoreDataEmptyView extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 16),
-            Text(
-              '현재 공개된 매장이 없습니다.',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
+            _LiveRegionMessage(
+              message: '현재 공개된 매장이 없습니다.',
+              child: Text(
+                '현재 공개된 매장이 없습니다.',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
         ),
@@ -875,10 +1126,13 @@ class StoreDataErrorView extends StatelessWidget {
               color: Theme.of(context).colorScheme.error,
             ),
             const SizedBox(height: 16),
-            Text(
-              '공개 매장 정보를 불러오지 못했습니다.',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
+            _LiveRegionMessage(
+              message: '공개 매장 정보를 불러오지 못했습니다.',
+              child: Text(
+                '공개 매장 정보를 불러오지 못했습니다.',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -900,7 +1154,12 @@ class _MapLoadingOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return const ColoredBox(
       color: Color(0x66FFFFFF),
-      child: Center(child: CircularProgressIndicator()),
+      child: Center(
+        child: _LiveRegionMessage(
+          message: '지도를 불러오는 중입니다.',
+          child: CircularProgressIndicator(),
+        ),
+      ),
     );
   }
 }
@@ -917,12 +1176,13 @@ class MapErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final message = showDiagnostics
+        ? '지도를 불러오지 못했습니다.\n$error'
+        : '지도를 불러오지 못했습니다.';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text(
-          showDiagnostics ? '지도를 불러오지 못했습니다.\n$error' : '지도를 불러오지 못했습니다.',
-        ),
+        child: _LiveRegionMessage(message: message, child: Text(message)),
       ),
     );
   }

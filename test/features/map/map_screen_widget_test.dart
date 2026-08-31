@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Tristate;
 
 import 'package:burger_map_korea/app/app_theme.dart';
 import 'package:burger_map_korea/core/config/app_config.dart';
@@ -102,6 +103,7 @@ void main() {
     required SupabaseStoreLoader loader,
     required StoreMapSurfaceBuilder mapSurfaceBuilder,
     StoreCameraMover? storeCameraMover,
+    MapZoomMover? mapZoomMover,
     ExternalUriLauncher? externalUriLauncher,
     FavoriteStoreIdsStore? favoriteStoreIdsStore,
   }) async {
@@ -119,6 +121,7 @@ void main() {
           supabaseStoreLoader: loader,
           mapSurfaceBuilder: mapSurfaceBuilder,
           storeCameraMover: storeCameraMover,
+          mapZoomMover: mapZoomMover,
           externalUriLauncher: externalUriLauncher,
           favoriteStoreIdsStore:
               favoriteStoreIdsStore ?? _MemoryFavoriteStoreIdsStore(),
@@ -155,7 +158,7 @@ void main() {
       testApp(StorePreviewCard(store: store, onViewDetails: () {})),
     );
 
-    expect(find.text('검수 데이터'), findsOneWidget);
+    expect(find.text('검수 데이터'), findsNothing);
     expect(find.text(store.name), findsOneWidget);
     expect(find.text(store.address), findsOneWidget);
     expect(find.text(store.burgerStyle), findsOneWidget);
@@ -587,7 +590,7 @@ void main() {
     await tester.pump();
 
     expect(markerCount, 0);
-    expect(find.text('검색 결과가 없습니다.'), findsOneWidget);
+    expect(find.text('즐겨찾기한 매장이 없습니다.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1066,6 +1069,240 @@ void main() {
     await tester.pump();
     expect(find.byType(StorePreviewCard), findsNothing);
     expect(cameraMoveRequests, 0);
+  });
+
+  testWidgets('search and filters expose one accessible semantics node each', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    final searchFinder = find.bySemanticsLabel('매장명 또는 주소 검색');
+    expect(searchFinder, findsOne);
+    expect(
+      tester.getSemantics(searchFinder).flagsCollection.isTextField,
+      isTrue,
+    );
+
+    final favoritesFinder = find.bySemanticsLabel('즐겨찾기 매장만 보기');
+    expect(favoritesFinder, findsOne);
+    var favoritesNode = tester.getSemantics(favoritesFinder);
+    expect(favoritesNode.flagsCollection.isButton, isTrue);
+    expect(favoritesNode.flagsCollection.isSelected, isNot(Tristate.none));
+    expect(favoritesNode.flagsCollection.isSelected, Tristate.isFalse);
+
+    final allFilterFinder = find.bySemanticsLabel('버거 스타일 전체 필터');
+    expect(allFilterFinder, findsOne);
+    var allFilterNode = tester.getSemantics(allFilterFinder);
+    expect(allFilterNode.flagsCollection.isButton, isTrue);
+    expect(allFilterNode.flagsCollection.isSelected, Tristate.isTrue);
+
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.pump();
+    favoritesNode = tester.getSemantics(favoritesFinder);
+    expect(favoritesNode.flagsCollection.isSelected, Tristate.isTrue);
+
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)));
+    await tester.pump();
+    allFilterNode = tester.getSemantics(allFilterFinder);
+    expect(allFilterNode.flagsCollection.isSelected, Tristate.isFalse);
+    final classicNode = tester.getSemantics(
+      find.bySemanticsLabel('버거 스타일 클래식 필터'),
+    );
+    expect(classicNode.flagsCollection.isButton, isTrue);
+    expect(classicNode.flagsCollection.isSelected, Tristate.isTrue);
+    semanticsHandle.dispose();
+  });
+
+  testWidgets('zoom controls are accessible, 48dp, stepped, and bounded', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    final zoomMoves = <double>[];
+    Set<Marker> markers = const <Marker>{};
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (nextMarkers, onMapTap) {
+        markers = nextMarkers;
+        return const ColoredBox(color: Colors.white);
+      },
+      mapZoomMover: (zoom) async {
+        zoomMoves.add(zoom);
+      },
+    );
+
+    final zoomInFinder = find.byKey(mapZoomInButtonKey);
+    final zoomOutFinder = find.byKey(mapZoomOutButtonKey);
+    expect(find.bySemanticsLabel('지도 확대'), findsOne);
+    expect(find.bySemanticsLabel('지도 축소'), findsOne);
+    expect(tester.getSize(zoomInFinder).width, greaterThanOrEqualTo(48));
+    expect(tester.getSize(zoomInFinder).height, greaterThanOrEqualTo(48));
+    expect(tester.getSize(zoomOutFinder).width, greaterThanOrEqualTo(48));
+    expect(tester.getSize(zoomOutFinder).height, greaterThanOrEqualTo(48));
+    expect(
+      tester.getRect(zoomInFinder).top,
+      greaterThanOrEqualTo(
+        tester.getRect(find.byKey(favoritesOnlyFilterKey)).bottom,
+      ),
+    );
+
+    final initialZoom = cameraPositionForStores(searchableStores).zoom;
+    await tester.tap(zoomInFinder);
+    await tester.pumpAndSettle();
+    expect(zoomMoves, [initialZoom + mapZoomStep]);
+
+    while (tester
+            .widget<IconButton>(
+              find.descendant(
+                of: zoomInFinder,
+                matching: find.byType(IconButton),
+              ),
+            )
+            .onPressed !=
+        null) {
+      await tester.tap(zoomInFinder);
+      await tester.pumpAndSettle();
+    }
+    expect(zoomMoves.last, maximumMapZoom);
+    final movesAtMaximum = zoomMoves.length;
+    expect(
+      tester
+          .widget<IconButton>(
+            find.descendant(
+              of: zoomInFinder,
+              matching: find.byType(IconButton),
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(zoomMoves.length, movesAtMaximum);
+
+    while (tester
+            .widget<IconButton>(
+              find.descendant(
+                of: zoomOutFinder,
+                matching: find.byType(IconButton),
+              ),
+            )
+            .onPressed !=
+        null) {
+      await tester.tap(zoomOutFinder);
+      await tester.pumpAndSettle();
+    }
+    expect(zoomMoves.last, minimumMapZoom);
+    for (var index = 1; index < zoomMoves.length; index += 1) {
+      final step = (zoomMoves[index] - zoomMoves[index - 1]).abs();
+      expect(step, greaterThan(0));
+      expect(step, lessThanOrEqualTo(mapZoomStep));
+    }
+
+    markers.first.onTap?.call();
+    await tester.pump();
+    expect(find.byType(StorePreviewCard), findsOneWidget);
+    expect(zoomInFinder, findsOneWidget);
+    expect(zoomOutFinder, findsOneWidget);
+    expect(
+      tester.getRect(zoomOutFinder).bottom,
+      lessThanOrEqualTo(tester.getRect(find.byType(StorePreviewCard)).top),
+    );
+    semanticsHandle.dispose();
+  });
+
+  testWidgets('result and favorite empty states use distinct live regions', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+    await tester.pump();
+    final resultCountNode = tester.getSemantics(
+      find.bySemanticsLabel('검색 결과 1개'),
+    );
+    expect(resultCountNode.flagsCollection.isLiveRegion, isTrue);
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'not present');
+    await tester.pump();
+    final noResultsNode = tester.getSemantics(
+      find.bySemanticsLabel('검색 결과가 없습니다.'),
+    );
+    expect(noResultsNode.flagsCollection.isLiveRegion, isTrue);
+
+    await tester.tap(find.byKey(storeSearchClearButtonKey));
+    await tester.pump();
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.pump();
+    expect(find.text('즐겨찾기한 매장이 없습니다.'), findsOneWidget);
+    final noFavoritesNode = tester.getSemantics(
+      find.bySemanticsLabel('즐겨찾기한 매장이 없습니다.'),
+    );
+    expect(noFavoritesNode.flagsCollection.isLiveRegion, isTrue);
+    semanticsHandle.dispose();
+  });
+
+  testWidgets('loading, error, and retry success are live regions', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    final initialLoad = Completer<List<StoreLocation>>();
+    final retryLoad = Completer<List<StoreLocation>>();
+    var loadCalls = 0;
+    await pumpSearchableMap(
+      tester,
+      loader: () {
+        loadCalls += 1;
+        return loadCalls == 1 ? initialLoad.future : retryLoad.future;
+      },
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    final loadingNode = tester.getSemantics(
+      find.bySemanticsLabel('공개 매장을 불러오는 중입니다.'),
+    );
+    expect(loadingNode.flagsCollection.isLiveRegion, isTrue);
+
+    initialLoad.completeError(StateError('synthetic failure'));
+    await tester.pump();
+    await tester.pump();
+    final errorNode = tester.getSemantics(
+      find.bySemanticsLabel('공개 매장 정보를 불러오지 못했습니다.'),
+    );
+    expect(errorNode.flagsCollection.isLiveRegion, isTrue);
+
+    await tester.tap(find.text('다시 시도'));
+    await tester.pump();
+    expect(
+      tester
+          .getSemantics(find.bySemanticsLabel('공개 매장을 불러오는 중입니다.'))
+          .flagsCollection
+          .isLiveRegion,
+      isTrue,
+    );
+
+    retryLoad.complete(searchableStores);
+    await tester.pump();
+    await tester.pump();
+    final readyNode = tester.getSemantics(
+      find.bySemanticsLabel('공개 매장 3개를 불러왔습니다.'),
+    );
+    expect(readyNode.flagsCollection.isLiveRegion, isTrue);
+    semanticsHandle.dispose();
   });
 
   testWidgets('staging exposes approved styles in taxonomy order', (
