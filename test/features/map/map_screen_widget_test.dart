@@ -104,6 +104,8 @@ void main() {
     required StoreMapSurfaceBuilder mapSurfaceBuilder,
     StoreCameraMover? storeCameraMover,
     MapZoomMover? mapZoomMover,
+    ClusterCameraMover? clusterCameraMover,
+    ValueChanged<ClusterManager>? onClusterManagerReady,
     ExternalUriLauncher? externalUriLauncher,
     FavoriteStoreIdsStore? favoriteStoreIdsStore,
   }) async {
@@ -122,6 +124,8 @@ void main() {
           mapSurfaceBuilder: mapSurfaceBuilder,
           storeCameraMover: storeCameraMover,
           mapZoomMover: mapZoomMover,
+          clusterCameraMover: clusterCameraMover,
+          onClusterManagerReady: onClusterManagerReady,
           externalUriLauncher: externalUriLauncher,
           favoriteStoreIdsStore:
               favoriteStoreIdsStore ?? _MemoryFavoriteStoreIdsStore(),
@@ -130,6 +134,83 @@ void main() {
     );
     await tester.pump();
   }
+
+  test('all public store markers share the cluster manager', () {
+    final markers = buildStoreMarkers(buildSyntheticPublic25Stores(), (_) {});
+
+    expect(markers, hasLength(25));
+    expect(markers.map((marker) => marker.clusterManagerId).toSet(), {
+      storeMarkerClusterManagerId,
+    });
+  });
+
+  test('empty visible stores create no clustered markers', () {
+    final markers = buildStoreMarkers(const <StoreLocation>[], (_) {});
+
+    expect(markers, isEmpty);
+  });
+
+  testWidgets(
+    'cluster tap fits bounds, closes preview, and ignores repeat taps',
+    (tester) async {
+      Set<Marker> markers = const <Marker>{};
+      ClusterManager? clusterManager;
+      LatLngBounds? movedBounds;
+      double? movedPadding;
+      var moveCalls = 0;
+      final moveCompleter = Completer<void>();
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (nextMarkers, onMapTap) {
+          markers = nextMarkers;
+          return const ColoredBox(color: Colors.white);
+        },
+        clusterCameraMover: (bounds, padding) {
+          moveCalls += 1;
+          movedBounds = bounds;
+          movedPadding = padding;
+          return moveCompleter.future;
+        },
+        onClusterManagerReady: (manager) {
+          clusterManager = manager;
+        },
+      );
+
+      expect(clusterManager?.onClusterTap, isNotNull);
+      markers
+          .firstWhere((marker) => marker.markerId.value == 'beta')
+          .onTap
+          ?.call();
+      await tester.pump();
+      expect(find.byType(StorePreviewCard), findsOneWidget);
+
+      final bounds = LatLngBounds(
+        southwest: const LatLng(37.52, 126.98),
+        northeast: const LatLng(37.54, 127),
+      );
+      final cluster = Cluster(
+        storeMarkerClusterManagerId,
+        const <MarkerId>[MarkerId('alpha'), MarkerId('beta')],
+        position: const LatLng(37.53, 126.99),
+        bounds: bounds,
+      );
+
+      clusterManager!.onClusterTap!.call(cluster);
+      await tester.pump();
+
+      expect(movedBounds, bounds);
+      expect(movedPadding, clusterBoundsPadding);
+      expect(find.byType(StorePreviewCard), findsNothing);
+
+      clusterManager!.onClusterTap!.call(cluster);
+      await tester.pump();
+      expect(moveCalls, 1);
+
+      moveCompleter.complete();
+      await tester.pump();
+    },
+  );
 
   testWidgets('does not show preview card when no store is selected', (
     tester,
@@ -463,63 +544,78 @@ void main() {
   testWidgets('filters markers by name and restores all markers on clear', (
     tester,
   ) async {
-    var markerCount = 0;
+    Set<Marker> visibleMarkers = const <Marker>{};
     await pumpSearchableMap(
       tester,
       loader: () async => searchableStores,
       mapSurfaceBuilder: (markers, onMapTap) {
-        markerCount = markers.length;
+        visibleMarkers = markers;
         return const ColoredBox(color: Colors.white);
       },
     );
 
-    expect(markerCount, 3);
+    expect(visibleMarkers, hasLength(3));
+    expect(
+      visibleMarkers.every(
+        (marker) => marker.clusterManagerId == storeMarkerClusterManagerId,
+      ),
+      isTrue,
+    );
     await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
     await tester.pump();
 
-    expect(markerCount, 1);
+    expect(visibleMarkers, hasLength(1));
+    expect(visibleMarkers.single.clusterManagerId, storeMarkerClusterManagerId);
     expect(find.text('Alpha Burger'), findsOneWidget);
     expect(find.text('Beta Kitchen'), findsNothing);
 
     await tester.tap(find.byKey(storeSearchClearButtonKey));
     await tester.pump();
 
-    expect(markerCount, 3);
+    expect(visibleMarkers, hasLength(3));
     expect(find.byKey(storeSearchResultsKey), findsNothing);
   });
 
   testWidgets('combines favorites with search and burger style filters', (
     tester,
   ) async {
-    var markerCount = 0;
+    Set<Marker> visibleMarkers = const <Marker>{};
     final favorites = _MemoryFavoriteStoreIdsStore({'alpha', 'beta'});
     await pumpSearchableMap(
       tester,
       loader: () async => searchableStores,
       favoriteStoreIdsStore: favorites,
       mapSurfaceBuilder: (markers, onMapTap) {
-        markerCount = markers.length;
+        visibleMarkers = markers;
         return const ColoredBox(color: Colors.white);
       },
     );
 
     await tester.tap(find.byKey(favoritesOnlyFilterKey));
     await tester.pump();
-    expect(markerCount, 2);
+    expect(visibleMarkers, hasLength(2));
+    expect(
+      visibleMarkers.every(
+        (marker) => marker.clusterManagerId == storeMarkerClusterManagerId,
+      ),
+      isTrue,
+    );
 
     await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
     await tester.pump();
-    expect(markerCount, 1);
+    expect(visibleMarkers, hasLength(1));
+    expect(visibleMarkers.single.clusterManagerId, storeMarkerClusterManagerId);
     expect(find.text('Alpha Burger'), findsOneWidget);
 
     await tester.enterText(find.byKey(storeSearchFieldKey), 'beta');
     await tester.pump();
-    expect(markerCount, 0);
+    expect(visibleMarkers, isEmpty);
     expect(find.text('검색 결과가 없습니다.'), findsOneWidget);
 
     await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)));
     await tester.pump();
-    expect(markerCount, 1);
+    expect(visibleMarkers, hasLength(1));
+    expect(visibleMarkers.single.clusterManagerId, storeMarkerClusterManagerId);
     expect(find.text('Beta Kitchen'), findsOneWidget);
   });
 
@@ -805,7 +901,10 @@ void main() {
       );
 
       markers
-          .firstWhere((marker) => marker.markerId.value == 'beta')
+          .firstWhere((marker) {
+            return marker.markerId.value == 'beta' &&
+                marker.clusterManagerId == storeMarkerClusterManagerId;
+          })
           .onTap
           ?.call();
       await tester.pump();
