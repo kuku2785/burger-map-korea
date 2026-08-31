@@ -26,14 +26,6 @@ class StorePreviewCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              '검수 데이터',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
             Text(store.name, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(store.address),
