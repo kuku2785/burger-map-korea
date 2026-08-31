@@ -64,8 +64,24 @@ void main() {
     expect(_mapMarker('integration-beta'), findsOneWidget);
     expect(_mapMarker('integration-gamma'), findsNothing);
 
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+
     final smashFilter = find.byKey(burgerStyleFilterKey(BurgerStyle.smash));
-    await tester.ensureVisible(smashFilter);
+    final burgerStyleFilters = find.ancestor(
+      of: find.byKey(burgerStyleAllFilterKey),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is ListView && widget.scrollDirection == Axis.horizontal,
+      ),
+    );
+    expect(burgerStyleFilters, findsOneWidget);
+    await tester.dragUntilVisible(
+      smashFilter,
+      burgerStyleFilters,
+      const Offset(-160, 0),
+    );
+    expect(smashFilter, findsOneWidget);
     await tester.tap(smashFilter);
     await tester.pumpAndSettle();
 
