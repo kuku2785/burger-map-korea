@@ -8,6 +8,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/config/app_config.dart';
 import '../../favorites/data/shared_preferences_favorite_store_ids_store.dart';
 import '../../favorites/domain/favorite_store_ids_store.dart';
+import '../../location/data/geolocator_current_location_service.dart';
+import '../../location/domain/current_location_service.dart';
 import '../../stores/data/external_uri_launcher.dart';
 import '../../stores/data/itaewon_store_locations.dart';
 import '../../stores/data/staging_store_locations_loader.dart';
@@ -22,6 +24,8 @@ typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
 typedef SupabaseStoreLoader = Future<List<StoreLocation>> Function();
 typedef StoreCameraMover = Future<void> Function(StoreLocation store);
 typedef MapZoomMover = Future<void> Function(double zoom);
+typedef CurrentLocationCameraMover =
+    Future<void> Function(LatLng location, double zoom);
 typedef ClusterCameraMover =
     Future<void> Function(LatLngBounds bounds, double padding);
 typedef StoreMapSurfaceBuilder =
@@ -34,10 +38,12 @@ const burgerStyleAllFilterKey = ValueKey<String>('burger-style-filter-all');
 const favoritesOnlyFilterKey = ValueKey<String>('favorites-only-filter');
 const mapZoomInButtonKey = ValueKey<String>('map-zoom-in-button');
 const mapZoomOutButtonKey = ValueKey<String>('map-zoom-out-button');
+const currentLocationButtonKey = ValueKey<String>('current-location-button');
 const storeDataReadyStatusKey = ValueKey<String>('store-data-ready-status');
 const minimumMapZoom = 3.0;
 const maximumMapZoom = 20.0;
 const mapZoomStep = 1.0;
+const currentLocationZoom = 16.0;
 const clusterBoundsPadding = 72.0;
 const storeMarkerClusterManagerId = ClusterManagerId('public-store-markers');
 
@@ -54,6 +60,9 @@ class MapScreen extends StatefulWidget {
     this.supabaseStoreLoader,
     this.storeCameraMover,
     this.mapZoomMover,
+    this.currentLocationCameraMover,
+    this.currentLocationService,
+    this.onMyLocationEnabledChanged,
     this.clusterCameraMover,
     this.onClusterManagerReady,
     this.mapSurfaceBuilder,
@@ -67,6 +76,9 @@ class MapScreen extends StatefulWidget {
   final SupabaseStoreLoader? supabaseStoreLoader;
   final StoreCameraMover? storeCameraMover;
   final MapZoomMover? mapZoomMover;
+  final CurrentLocationCameraMover? currentLocationCameraMover;
+  final CurrentLocationService? currentLocationService;
+  final ValueChanged<bool>? onMyLocationEnabledChanged;
   final ClusterCameraMover? clusterCameraMover;
   final ValueChanged<ClusterManager>? onClusterManagerReady;
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
@@ -87,6 +99,7 @@ class _MapScreenState extends State<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   late final FavoriteStoreIdsStore _favoriteStoreIdsStore;
+  late final CurrentLocationService _currentLocationService;
   late final ClusterManager _storeMarkerClusterManager;
   StoreLocation? _selectedStore;
   BurgerStyle? _selectedBurgerStyle;
@@ -97,6 +110,8 @@ class _MapScreenState extends State<MapScreen> {
   bool _isMapReady = false;
   bool _isChangingZoom = false;
   bool _isMovingToCluster = false;
+  bool _isRequestingCurrentLocation = false;
+  bool _isCurrentLocationEnabled = false;
   String _cameraStatus = '카메라 이동 대기 중';
   CameraPosition _initialCameraPosition = _pilotCameraPosition;
   CameraPosition _lastCameraPosition = _pilotCameraPosition;
@@ -115,6 +130,9 @@ class _MapScreenState extends State<MapScreen> {
     _favoriteStoreIdsStore =
         widget.favoriteStoreIdsStore ??
         SharedPreferencesFavoriteStoreIdsStore();
+    _currentLocationService =
+        widget.currentLocationService ??
+        const GeolocatorCurrentLocationService();
     _mapError = widget.initialMapError;
     _loadFavoriteStoreIds();
     _initializeStores();
@@ -222,6 +240,9 @@ class _MapScreenState extends State<MapScreen> {
     );
     final canChangeZoom =
         !_isChangingZoom && (_isMapReady || widget.mapZoomMover != null);
+    final canRequestCurrentLocation =
+        !_isRequestingCurrentLocation &&
+        (_isMapReady || widget.currentLocationCameraMover != null);
 
     return Stack(
       children: [
@@ -246,7 +267,7 @@ class _MapScreenState extends State<MapScreen> {
                       _cameraStatus = '카메라 이동 완료';
                     });
                   },
-                  myLocationEnabled: false,
+                  myLocationEnabled: _isCurrentLocationEnabled,
                   myLocationButtonEnabled: false,
                   mapToolbarEnabled: false,
                   zoomControlsEnabled: false,
@@ -303,7 +324,7 @@ class _MapScreenState extends State<MapScreen> {
           Positioned(
             right: 16,
             bottom: 16,
-            child: _MapZoomControls(
+            child: _MapActionControls(
               currentZoom: currentZoom.toDouble(),
               onZoomIn: canChangeZoom && currentZoom < maximumMapZoom
                   ? () => _changeMapZoom(mapZoomStep)
@@ -311,6 +332,10 @@ class _MapScreenState extends State<MapScreen> {
               onZoomOut: canChangeZoom && currentZoom > minimumMapZoom
                   ? () => _changeMapZoom(-mapZoomStep)
                   : null,
+              onCurrentLocation: canRequestCurrentLocation
+                  ? _requestCurrentLocation
+                  : null,
+              isRequestingCurrentLocation: _isRequestingCurrentLocation,
             ),
           )
         else
@@ -322,7 +347,7 @@ class _MapScreenState extends State<MapScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _MapZoomControls(
+                _MapActionControls(
                   currentZoom: currentZoom.toDouble(),
                   onZoomIn: canChangeZoom && currentZoom < maximumMapZoom
                       ? () => _changeMapZoom(mapZoomStep)
@@ -330,6 +355,10 @@ class _MapScreenState extends State<MapScreen> {
                   onZoomOut: canChangeZoom && currentZoom > minimumMapZoom
                       ? () => _changeMapZoom(-mapZoomStep)
                       : null,
+                  onCurrentLocation: canRequestCurrentLocation
+                      ? _requestCurrentLocation
+                      : null,
+                  isRequestingCurrentLocation: _isRequestingCurrentLocation,
                 ),
                 const SizedBox(height: 8),
                 StorePreviewCard(
@@ -540,6 +569,142 @@ class _MapScreenState extends State<MapScreen> {
       // Cluster camera movement is best-effort during map lifecycle changes.
     } finally {
       _isMovingToCluster = false;
+    }
+  }
+
+  Future<void> _requestCurrentLocation() async {
+    if (!mounted || _isRequestingCurrentLocation) {
+      return;
+    }
+
+    setState(() {
+      _isRequestingCurrentLocation = true;
+    });
+
+    try {
+      final serviceEnabled = await _currentLocationService
+          .isLocationServiceEnabled();
+      if (!mounted) {
+        return;
+      }
+      if (!serviceEnabled) {
+        _disableCurrentLocation();
+        _showCurrentLocationMessage(
+          '위치 서비스가 꺼져 있습니다. 기기 설정에서 위치 서비스를 켠 뒤 다시 시도해 주세요.',
+        );
+        return;
+      }
+
+      var permission = await _currentLocationService.checkPermission();
+      if (!mounted) {
+        return;
+      }
+      if (permission == LocationPermissionStatus.denied) {
+        permission = await _currentLocationService.requestPermission();
+        if (!mounted) {
+          return;
+        }
+      }
+
+      if (!_hasLocationPermission(permission)) {
+        _disableCurrentLocation();
+        _showCurrentLocationMessage(
+          permission == LocationPermissionStatus.deniedForever
+              ? '현재 위치 권한이 영구적으로 거부되었습니다. 설정에서 권한을 허용해 주세요.'
+              : '현재 위치 권한이 허용되지 않았습니다. 필요할 때 다시 요청할 수 있습니다.',
+          showSettingsAction:
+              permission == LocationPermissionStatus.deniedForever,
+        );
+        return;
+      }
+
+      _setCurrentLocationEnabled(true);
+      final location = await _currentLocationService.getCurrentLocation();
+      if (!mounted) {
+        return;
+      }
+
+      final target = LatLng(location.latitude, location.longitude);
+      final currentLocationCameraMover = widget.currentLocationCameraMover;
+      if (currentLocationCameraMover != null) {
+        await currentLocationCameraMover(target, currentLocationZoom);
+        return;
+      }
+      if (!_controller.isCompleted) {
+        return;
+      }
+
+      final controller = await _controller.future;
+      if (!mounted) {
+        return;
+      }
+      await controller.animateCamera(
+        CameraUpdate.newLatLngZoom(target, currentLocationZoom),
+      );
+    } on Object {
+      if (mounted) {
+        _showCurrentLocationMessage('현재 위치를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRequestingCurrentLocation = false;
+        });
+      }
+    }
+  }
+
+  bool _hasLocationPermission(LocationPermissionStatus permission) {
+    return permission == LocationPermissionStatus.whileInUse ||
+        permission == LocationPermissionStatus.always;
+  }
+
+  void _disableCurrentLocation() {
+    _setCurrentLocationEnabled(false);
+  }
+
+  void _setCurrentLocationEnabled(bool enabled) {
+    if (_isCurrentLocationEnabled == enabled) {
+      return;
+    }
+    setState(() {
+      _isCurrentLocationEnabled = enabled;
+    });
+    widget.onMyLocationEnabledChanged?.call(enabled);
+  }
+
+  void _showCurrentLocationMessage(
+    String message, {
+    bool showSettingsAction = false,
+  }) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: showSettingsAction
+            ? SnackBarAction(
+                label: '설정 열기',
+                onPressed: _openLocationAppSettings,
+              )
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _openLocationAppSettings() async {
+    try {
+      final opened = await _currentLocationService.openAppSettings();
+      if (!opened && mounted) {
+        _showCurrentLocationMessage('설정 화면을 열 수 없습니다.');
+      }
+    } on Object {
+      if (mounted) {
+        _showCurrentLocationMessage('설정 화면을 열 수 없습니다.');
+      }
     }
   }
 
@@ -870,6 +1035,84 @@ class _StoreSearchPanel extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _MapActionControls extends StatelessWidget {
+  const _MapActionControls({
+    required this.currentZoom,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onCurrentLocation,
+    required this.isRequestingCurrentLocation,
+  });
+
+  final double currentZoom;
+  final VoidCallback? onZoomIn;
+  final VoidCallback? onZoomOut;
+  final VoidCallback? onCurrentLocation;
+  final bool isRequestingCurrentLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _CurrentLocationButton(
+          key: currentLocationButtonKey,
+          isLoading: isRequestingCurrentLocation,
+          onPressed: onCurrentLocation,
+        ),
+        const SizedBox(height: 8),
+        _MapZoomControls(
+          currentZoom: currentZoom,
+          onZoomIn: onZoomIn,
+          onZoomOut: onZoomOut,
+        ),
+      ],
+    );
+  }
+}
+
+class _CurrentLocationButton extends StatelessWidget {
+  const _CurrentLocationButton({
+    super.key,
+    required this.isLoading,
+    required this.onPressed,
+  });
+
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isLoading ? '현재 위치를 찾는 중입니다.' : '현재 위치로 이동';
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      label: label,
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          color: Theme.of(context).colorScheme.surface,
+          child: IconButton(
+            onPressed: onPressed,
+            tooltip: label,
+            constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+            icon: isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.my_location),
+          ),
+        ),
+      ),
     );
   }
 }
