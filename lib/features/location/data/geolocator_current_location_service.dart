@@ -2,10 +2,27 @@ import 'package:geolocator/geolocator.dart' as geolocator;
 
 import '../domain/current_location_service.dart';
 
-class GeolocatorCurrentLocationService implements CurrentLocationService {
-  const GeolocatorCurrentLocationService();
+typedef LastKnownPositionLoader = Future<geolocator.Position?> Function();
+typedef CurrentPositionLoader =
+    Future<geolocator.Position> Function(
+      geolocator.LocationSettings locationSettings,
+    );
+typedef CurrentTimeProvider = DateTime Function();
 
-  static const _maximumCachedLocationAge = Duration(minutes: 2);
+class GeolocatorCurrentLocationService implements CurrentLocationService {
+  const GeolocatorCurrentLocationService({
+    this.lastKnownPositionLoader = _loadLastKnownPosition,
+    this.currentPositionLoader = _loadCurrentPosition,
+    this.currentTimeProvider = _currentTime,
+    this.maximumCachedLocationAge = const Duration(minutes: 2),
+    this.freshLocationTimeout = const Duration(seconds: 10),
+  });
+
+  final LastKnownPositionLoader lastKnownPositionLoader;
+  final CurrentPositionLoader currentPositionLoader;
+  final CurrentTimeProvider currentTimeProvider;
+  final Duration maximumCachedLocationAge;
+  final Duration freshLocationTimeout;
 
   @override
   Future<bool> isLocationServiceEnabled() {
@@ -24,14 +41,25 @@ class GeolocatorCurrentLocationService implements CurrentLocationService {
 
   @override
   Future<CurrentLocation> getCurrentLocation() async {
-    // Android 16 emulator LocationManager cleanup can block on NMEA callbacks.
-    // A recent system location avoids starting that update path.
-    final position = await geolocator.Geolocator.getLastKnownPosition();
-    if (position == null ||
-        DateTime.now().toUtc().difference(position.timestamp.toUtc()) >
-            _maximumCachedLocationAge) {
-      throw StateError('No recent device location is available.');
+    final cachedPosition = await lastKnownPositionLoader();
+    if (cachedPosition != null &&
+        currentTimeProvider().toUtc().difference(
+              cachedPosition.timestamp.toUtc(),
+            ) <=
+            maximumCachedLocationAge) {
+      return _toCurrentLocation(cachedPosition);
     }
+
+    final position = await currentPositionLoader(
+      geolocator.LocationSettings(
+        accuracy: geolocator.LocationAccuracy.high,
+        timeLimit: freshLocationTimeout,
+      ),
+    ).timeout(freshLocationTimeout);
+    return _toCurrentLocation(position);
+  }
+
+  CurrentLocation _toCurrentLocation(geolocator.Position position) {
     return CurrentLocation(
       latitude: position.latitude,
       longitude: position.longitude,
@@ -43,6 +71,20 @@ class GeolocatorCurrentLocationService implements CurrentLocationService {
     return geolocator.Geolocator.openAppSettings();
   }
 }
+
+Future<geolocator.Position?> _loadLastKnownPosition() {
+  return geolocator.Geolocator.getLastKnownPosition();
+}
+
+Future<geolocator.Position> _loadCurrentPosition(
+  geolocator.LocationSettings locationSettings,
+) {
+  return geolocator.Geolocator.getCurrentPosition(
+    locationSettings: locationSettings,
+  );
+}
+
+DateTime _currentTime() => DateTime.now();
 
 LocationPermissionStatus _mapPermission(
   geolocator.LocationPermission permission,
