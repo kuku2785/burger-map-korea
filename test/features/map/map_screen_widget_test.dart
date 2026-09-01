@@ -4,6 +4,7 @@ import 'dart:ui' show Tristate;
 import 'package:burger_map_korea/app/app_theme.dart';
 import 'package:burger_map_korea/core/config/app_config.dart';
 import 'package:burger_map_korea/features/favorites/domain/favorite_store_ids_store.dart';
+import 'package:burger_map_korea/features/location/domain/current_location_service.dart';
 import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
 import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
@@ -104,6 +105,9 @@ void main() {
     required StoreMapSurfaceBuilder mapSurfaceBuilder,
     StoreCameraMover? storeCameraMover,
     MapZoomMover? mapZoomMover,
+    CurrentLocationCameraMover? currentLocationCameraMover,
+    CurrentLocationService? currentLocationService,
+    ValueChanged<bool>? onMyLocationEnabledChanged,
     ClusterCameraMover? clusterCameraMover,
     ValueChanged<ClusterManager>? onClusterManagerReady,
     ExternalUriLauncher? externalUriLauncher,
@@ -124,6 +128,9 @@ void main() {
           mapSurfaceBuilder: mapSurfaceBuilder,
           storeCameraMover: storeCameraMover,
           mapZoomMover: mapZoomMover,
+          currentLocationCameraMover: currentLocationCameraMover,
+          currentLocationService: currentLocationService,
+          onMyLocationEnabledChanged: onMyLocationEnabledChanged,
           clusterCameraMover: clusterCameraMover,
           onClusterManagerReady: onClusterManagerReady,
           externalUriLauncher: externalUriLauncher,
@@ -149,6 +156,215 @@ void main() {
 
     expect(markers, isEmpty);
   });
+
+  testWidgets(
+    'current location requests permission only after a tap and moves the camera when allowed',
+    (tester) async {
+      final locationService = _FakeCurrentLocationService(
+        checkedPermission: LocationPermissionStatus.denied,
+        requestedPermission: LocationPermissionStatus.whileInUse,
+        location: const CurrentLocation(latitude: 37.531, longitude: 126.991),
+      );
+      final cameraMoves = <(LatLng, double)>[];
+      final myLocationEnabledChanges = <bool>[];
+
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        currentLocationService: locationService,
+        currentLocationCameraMover: (location, zoom) async {
+          cameraMoves.add((location, zoom));
+        },
+        onMyLocationEnabledChanged: myLocationEnabledChanges.add,
+      );
+
+      expect(locationService.checkPermissionCalls, 0);
+      expect(locationService.requestPermissionCalls, 0);
+      expect(locationService.currentLocationCalls, 0);
+
+      await tester.tap(find.byKey(currentLocationButtonKey));
+      await tester.pumpAndSettle();
+
+      expect(locationService.checkPermissionCalls, 1);
+      expect(locationService.requestPermissionCalls, 1);
+      expect(locationService.currentLocationCalls, 1);
+      expect(cameraMoves, [
+        (const LatLng(37.531, 126.991), currentLocationZoom),
+      ]);
+      expect(myLocationEnabledChanges, [true]);
+    },
+  );
+
+  testWidgets(
+    'denied current location permission shows guidance without moving',
+    (tester) async {
+      final locationService = _FakeCurrentLocationService(
+        checkedPermission: LocationPermissionStatus.denied,
+        requestedPermission: LocationPermissionStatus.denied,
+      );
+      var cameraMoveCalls = 0;
+
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        currentLocationService: locationService,
+        currentLocationCameraMover: (location, zoom) async {
+          cameraMoveCalls += 1;
+        },
+      );
+
+      await tester.tap(find.byKey(currentLocationButtonKey));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.textContaining('현재 위치 권한이 허용되지 않았습니다'), findsOneWidget);
+      expect(cameraMoveCalls, 0);
+      expect(locationService.currentLocationCalls, 0);
+    },
+  );
+
+  testWidgets('permanently denied location permission offers app settings', (
+    tester,
+  ) async {
+    final locationService = _FakeCurrentLocationService(
+      checkedPermission: LocationPermissionStatus.deniedForever,
+    );
+
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: locationService,
+      currentLocationCameraMover: (location, zoom) async {},
+    );
+
+    await tester.tap(find.byKey(currentLocationButtonKey));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.textContaining('영구적으로 거부되었습니다'), findsOneWidget);
+    expect(find.text('설정 열기'), findsOneWidget);
+    await tester.tap(find.text('설정 열기'));
+    await tester.pump();
+    expect(locationService.openAppSettingsCalls, 1);
+    expect(locationService.requestPermissionCalls, 0);
+  });
+
+  testWidgets(
+    'disabled location services show guidance without requesting permission',
+    (tester) async {
+      final locationService = _FakeCurrentLocationService(
+        serviceEnabled: false,
+      );
+
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        currentLocationService: locationService,
+        currentLocationCameraMover: (location, zoom) async {},
+      );
+
+      await tester.tap(find.byKey(currentLocationButtonKey));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.textContaining('위치 서비스가 꺼져 있습니다'), findsOneWidget);
+      expect(locationService.checkPermissionCalls, 0);
+      expect(locationService.currentLocationCalls, 0);
+    },
+  );
+
+  testWidgets(
+    'current location errors keep the map available and show guidance',
+    (tester) async {
+      final locationService = _FakeCurrentLocationService(
+        checkedPermission: LocationPermissionStatus.whileInUse,
+        currentLocationError: StateError('synthetic location failure'),
+      );
+      var cameraMoveCalls = 0;
+
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        currentLocationService: locationService,
+        currentLocationCameraMover: (location, zoom) async {
+          cameraMoveCalls += 1;
+        },
+      );
+
+      await tester.tap(find.byKey(currentLocationButtonKey));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.textContaining('현재 위치를 가져오지 못했습니다'), findsOneWidget);
+      expect(cameraMoveCalls, 0);
+      expect(find.byKey(storeSearchFieldKey), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'current location button prevents repeat taps and exposes its state',
+    (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      final locationCompleter = Completer<CurrentLocation>();
+      final locationService = _FakeCurrentLocationService(
+        checkedPermission: LocationPermissionStatus.whileInUse,
+        currentLocationHandler: () => locationCompleter.future,
+      );
+
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (markers, onMapTap) {
+          return const ColoredBox(color: Colors.white);
+        },
+        currentLocationService: locationService,
+        currentLocationCameraMover: (location, zoom) async {},
+      );
+
+      final button = find.byKey(currentLocationButtonKey);
+      final readyNode = tester.getSemantics(find.bySemanticsLabel('현재 위치로 이동'));
+      expect(readyNode.flagsCollection.isButton, isTrue);
+      expect(readyNode.flagsCollection.isEnabled, Tristate.isTrue);
+
+      await tester.tap(button);
+      await tester.pump();
+      expect(find.bySemanticsLabel('현재 위치를 찾는 중입니다.'), findsOne);
+      final loadingNode = tester.getSemantics(
+        find.bySemanticsLabel('현재 위치를 찾는 중입니다.'),
+      );
+      expect(loadingNode.flagsCollection.isEnabled, Tristate.isFalse);
+
+      await tester.tap(button);
+      await tester.pump();
+      expect(locationService.currentLocationCalls, 1);
+
+      locationCompleter.complete(
+        const CurrentLocation(latitude: 37.531, longitude: 126.991),
+      );
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('현재 위치로 이동'), findsOne);
+      semanticsHandle.dispose();
+    },
+  );
 
   testWidgets(
     'cluster tap fits bounds, closes preview, and ignores repeat taps',
@@ -1474,5 +1690,65 @@ class _MemoryFavoriteStoreIdsStore implements FavoriteStoreIdsStore {
   Future<void> save(Set<String> storeIds) async {
     saveCalls += 1;
     this.storeIds = Set<String>.of(storeIds);
+  }
+}
+
+class _FakeCurrentLocationService implements CurrentLocationService {
+  _FakeCurrentLocationService({
+    this.serviceEnabled = true,
+    this.checkedPermission = LocationPermissionStatus.whileInUse,
+    LocationPermissionStatus? requestedPermission,
+    CurrentLocation? location,
+    this.currentLocationError,
+    this.currentLocationHandler,
+  }) : requestedPermission = requestedPermission ?? checkedPermission,
+       location =
+           location ??
+           const CurrentLocation(latitude: 37.53, longitude: 126.99);
+
+  final bool serviceEnabled;
+  final LocationPermissionStatus checkedPermission;
+  final LocationPermissionStatus requestedPermission;
+  final CurrentLocation location;
+  final Object? currentLocationError;
+  final Future<CurrentLocation> Function()? currentLocationHandler;
+  int checkPermissionCalls = 0;
+  int requestPermissionCalls = 0;
+  int currentLocationCalls = 0;
+  int openAppSettingsCalls = 0;
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => serviceEnabled;
+
+  @override
+  Future<LocationPermissionStatus> checkPermission() async {
+    checkPermissionCalls += 1;
+    return checkedPermission;
+  }
+
+  @override
+  Future<LocationPermissionStatus> requestPermission() async {
+    requestPermissionCalls += 1;
+    return requestedPermission;
+  }
+
+  @override
+  Future<CurrentLocation> getCurrentLocation() async {
+    currentLocationCalls += 1;
+    final handler = currentLocationHandler;
+    if (handler != null) {
+      return handler();
+    }
+    final error = currentLocationError;
+    if (error != null) {
+      throw error;
+    }
+    return location;
+  }
+
+  @override
+  Future<bool> openAppSettings() async {
+    openAppSettingsCalls += 1;
+    return true;
   }
 }
