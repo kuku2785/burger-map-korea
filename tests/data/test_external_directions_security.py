@@ -50,14 +50,11 @@ class ExternalDirectionsSecurityTest(unittest.TestCase):
         self.assertNotIn("canLaunchUrl", source)
         self.assertNotIn("inAppWebView", source)
 
-    def test_no_location_permissions_were_added(self) -> None:
+    def test_only_foreground_fine_location_permission_is_declared(self) -> None:
         manifest = ANDROID_MANIFEST.read_text(encoding="utf-8")
 
-        for permission in (
-            "ACCESS_FINE_LOCATION",
-            "ACCESS_COARSE_LOCATION",
-            "ACCESS_BACKGROUND_LOCATION",
-        ):
+        self.assertIn("ACCESS_FINE_LOCATION", manifest)
+        for permission in ("ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION"):
             self.assertNotIn(permission, manifest)
 
 
