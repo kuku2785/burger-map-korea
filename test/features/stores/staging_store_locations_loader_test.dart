@@ -79,4 +79,37 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('parses optional valid and null staging regions', () {
+    final stores =
+        jsonDecode(File(stagingFixturePath).readAsStringSync())
+            as List<dynamic>;
+    (stores.first as Map<String, dynamic>)['region'] = {
+      'sidoCode': '11',
+      'sidoName': '서울특별시',
+      'sigunguCode': '11170',
+      'sigunguName': '용산구',
+      'dongCode': '1117010100',
+      'dongName': '후암동',
+    };
+    (stores[1] as Map<String, dynamic>)['region'] = null;
+
+    final parsed = parseYongsanStagingStoreLocations(jsonEncode(stores));
+
+    expect(parsed.first.region?.sidoCode, '11');
+    expect(parsed.first.region?.dongName, '후암동');
+    expect(parsed[1].region, isNull);
+  });
+
+  test('rejects malformed optional staging regions', () {
+    final stores =
+        jsonDecode(File(stagingFixturePath).readAsStringSync())
+            as List<dynamic>;
+    (stores.first as Map<String, dynamic>)['region'] = {'sidoCode': '11'};
+
+    expect(
+      () => parseYongsanStagingStoreLocations(jsonEncode(stores)),
+      throwsFormatException,
+    );
+  });
 }

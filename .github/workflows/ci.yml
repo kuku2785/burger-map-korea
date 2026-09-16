@@ -102,10 +102,19 @@ jobs:
       - name: Install Python test dependencies
         run: python -m pip install pytest==7.4.0
 
+      - name: Run release artifact safety tests
+        run: |
+          python -m pytest \
+            tests/data/test_verify_release_bundle.py \
+            tests/data/test_android_release_configuration.py \
+            -q
+
       - name: Run store data validation tests
         run: |
           mkdir -p build/reports/python-data-tests
           python -m pytest tests/data \
+            --ignore=tests/data/test_verify_release_bundle.py \
+            --ignore=tests/data/test_android_release_configuration.py \
             --junitxml=build/reports/python-data-tests/junit.xml \
             2>&1 | tee build/reports/python-data-tests/pytest.log
 

@@ -6,19 +6,27 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../info/presentation/app_info_screen.dart';
+import '../../favorites/application/favorite_store_ids_controller.dart';
 import '../../favorites/data/shared_preferences_favorite_store_ids_store.dart';
 import '../../favorites/domain/favorite_store_ids_store.dart';
+import '../../location/application/current_location_controller.dart';
 import '../../location/data/geolocator_current_location_service.dart';
 import '../../location/domain/current_location_service.dart';
+import '../../stores/application/public_store_controller.dart';
 import '../../stores/data/external_uri_launcher.dart';
 import '../../stores/data/itaewon_store_locations.dart';
 import '../../stores/data/staging_store_locations_loader.dart';
 import '../../stores/data/supabase_store_locations_loader.dart';
 import '../../stores/domain/burger_style.dart';
+import '../../stores/domain/store_distance.dart';
 import '../../stores/domain/store_location.dart';
 import '../../stores/domain/store_search.dart';
+import '../../stores/domain/store_region.dart';
+import '../../stores/presentation/region_selection_screen.dart';
 import '../../stores/presentation/store_detail_screen.dart';
 import 'store_preview_card.dart';
+import 'store_list_panel.dart';
 
 typedef StagingStoreLoader = Future<List<StoreLocation>> Function();
 typedef SupabaseStoreLoader = Future<List<StoreLocation>> Function();
@@ -30,15 +38,29 @@ typedef ClusterCameraMover =
     Future<void> Function(LatLngBounds bounds, double padding);
 typedef StoreMapSurfaceBuilder =
     Widget Function(Set<Marker> markers, ValueChanged<LatLng> onMapTap);
+typedef CurrentLocationClock = DateTime Function();
 
 const storeSearchFieldKey = ValueKey<String>('store-search-field');
+const explorerMapTabKey = ValueKey<String>('explorer-map-tab');
+const explorerListTabKey = ValueKey<String>('explorer-list-tab');
 const storeSearchClearButtonKey = ValueKey<String>('store-search-clear-button');
 const storeSearchResultsKey = ValueKey<String>('store-search-results');
 const burgerStyleAllFilterKey = ValueKey<String>('burger-style-filter-all');
 const favoritesOnlyFilterKey = ValueKey<String>('favorites-only-filter');
+const regionFilterButtonKey = ValueKey<String>('region-filter-button');
+const favoritesRetryButtonKey = ValueKey<String>('favorites-retry-button');
+const favoritesSaveRetryButtonKey = ValueKey<String>(
+  'favorites-save-retry-button',
+);
+const storeDataRefreshButtonKey = ValueKey<String>('store-data-refresh-button');
+const storeDataRefreshingViewKey = ValueKey<String>(
+  'store-data-refreshing-view',
+);
+const nearbySortFilterKey = ValueKey<String>('nearby-sort-filter');
 const mapZoomInButtonKey = ValueKey<String>('map-zoom-in-button');
 const mapZoomOutButtonKey = ValueKey<String>('map-zoom-out-button');
 const currentLocationButtonKey = ValueKey<String>('current-location-button');
+const appInfoButtonKey = ValueKey<String>('app-info-button');
 const storeDataReadyStatusKey = ValueKey<String>('store-data-ready-status');
 const minimumMapZoom = 3.0;
 const maximumMapZoom = 20.0;
@@ -68,6 +90,14 @@ class MapScreen extends StatefulWidget {
     this.mapSurfaceBuilder,
     this.externalUriLauncher,
     this.favoriteStoreIdsStore,
+    this.storeLoadTimeout = defaultSupabaseStoreLoadTimeout,
+    this.storeRefreshInterval = defaultPublicStoreRefreshInterval,
+    this.storeClock,
+    this.storeRefreshScheduler,
+    this.currentLocationClock,
+    this.maximumCurrentLocationAge = const Duration(minutes: 2),
+    this.currentLocationTimeout = const Duration(seconds: 10),
+    this.mapCameraTimeout = const Duration(seconds: 10),
   });
 
   final AppConfig config;
@@ -84,33 +114,54 @@ class MapScreen extends StatefulWidget {
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
   final ExternalUriLauncher? externalUriLauncher;
   final FavoriteStoreIdsStore? favoriteStoreIdsStore;
+  final Duration storeLoadTimeout;
+  final Duration storeRefreshInterval;
+  final PublicStoreClock? storeClock;
+  final PublicStoreRefreshScheduler? storeRefreshScheduler;
+  final CurrentLocationClock? currentLocationClock;
+  final Duration maximumCurrentLocationAge;
+  final Duration currentLocationTimeout;
+  final Duration mapCameraTimeout;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   static const _pilotCameraPosition = CameraPosition(
     target: LatLng(37.53415, 126.99007),
     zoom: 16,
   );
 
-  final Completer<GoogleMapController> _controller = Completer();
+  GoogleMapController? _mapController;
+  Completer<void> _cameraInterruption = Completer<void>();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  late final FavoriteStoreIdsStore _favoriteStoreIdsStore;
+  final ScrollController _listScrollController = ScrollController();
+  late final FavoriteStoreIdsController _favoritesController;
+  late final PublicStoreController? _publicStoresController;
   late final CurrentLocationService _currentLocationService;
   late final ClusterManager _storeMarkerClusterManager;
   StoreLocation? _selectedStore;
   BurgerStyle? _selectedBurgerStyle;
-  Set<String> _favoriteStoreIds = const <String>{};
+  bool _allStoresSelected = false;
+  StoreRegionFilter? _selectedRegionFilter;
+  bool _regionPickerOpen = false;
+  // View projection of the existing store owner, never an independent cache.
+  final _regionSnapshots = ValueNotifier<List<StoreLocation>?>(null);
+  int _nearbySelectionGeneration = 0;
+  late final CurrentLocationController _locationController;
+  bool _restoreLocationOnResume = false;
+  bool _restoreNearbyOnResume = false;
+  int _locationUiGeneration = 0;
+  CurrentLocation? get _currentLocation => _locationController.location;
   String _searchQuery = '';
   bool _favoritesOnly = false;
-  bool _favoritesLoaded = false;
-  bool _isMapReady = false;
+  bool _nearbySortEnabled = false;
+  bool get _isMapReady => _mapController != null;
   bool _isChangingZoom = false;
   bool _isMovingToCluster = false;
-  bool _isRequestingCurrentLocation = false;
+  bool get _isRequestingCurrentLocation => _locationController.loading;
   bool _isCurrentLocationEnabled = false;
   String _cameraStatus = '카메라 이동 대기 중';
   CameraPosition _initialCameraPosition = _pilotCameraPosition;
@@ -118,50 +169,163 @@ class _MapScreenState extends State<MapScreen> {
   List<StoreLocation>? _stores;
   Object? _storeLoadError;
   Object? _mapError;
+  bool _hasLoadedStores = false;
+  bool _enteredBackground = false;
+  bool _showList = false;
+
+  List<StoreLocation> get _filteredStores {
+    final filtered = filterStoreLocations(
+      _visiblePublicStores ?? const <StoreLocation>[],
+      _searchQuery,
+      burgerStyle: _selectedBurgerStyle,
+      favoriteStoreIds: _favoriteStoreIds,
+      favoritesOnly: _favoritesOnly,
+      regionFilter: _selectedRegionFilter,
+    );
+    final location = _freshCurrentLocation;
+    return _nearbySortEnabled && location != null
+        ? sortStoreLocationsByDistance(
+            filtered,
+            fromLatitude: location.latitude,
+            fromLongitude: location.longitude,
+          )
+        : filtered;
+  }
+
+  Set<String> get _favoriteStoreIds => _favoritesController.storeIds;
+  bool get _favoritesLoaded => _favoritesController.isReady;
+  DateTime get _locationNow =>
+      (widget.currentLocationClock ?? DateTime.now)().toUtc();
+  CurrentLocation? get _freshCurrentLocation {
+    final location = _currentLocation;
+    return location != null &&
+            location.isFreshAt(_locationNow, widget.maximumCurrentLocationAge)
+        ? location
+        : null;
+  }
+
+  List<StoreLocation>? get _visiblePublicStores {
+    final controller = _publicStoresController;
+    return controller == null ? _stores : controller.stores;
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _storeMarkerClusterManager = ClusterManager(
       clusterManagerId: storeMarkerClusterManagerId,
       onClusterTap: _handleClusterTap,
     );
     widget.onClusterManagerReady?.call(_storeMarkerClusterManager);
-    _favoriteStoreIdsStore =
-        widget.favoriteStoreIdsStore ??
-        SharedPreferencesFavoriteStoreIdsStore();
+    _favoritesController = FavoriteStoreIdsController(
+      widget.favoriteStoreIdsStore ?? SharedPreferencesFavoriteStoreIdsStore(),
+    )..addListener(_handleFavoritesChanged);
     _currentLocationService =
-        widget.currentLocationService ??
-        const GeolocatorCurrentLocationService();
+        widget.currentLocationService ?? GeolocatorCurrentLocationService();
+    _locationController = CurrentLocationController(
+      _currentLocationService,
+      clock: widget.currentLocationClock,
+      maximumAge: widget.maximumCurrentLocationAge,
+      requestTimeout: widget.currentLocationTimeout,
+    )..addListener(_handleLocationChanged);
+    _publicStoresController = _createPublicStoresController()
+      ?..addListener(_handlePublicStoresChanged);
     _mapError = widget.initialMapError;
-    _loadFavoriteStoreIds();
+    unawaited(_favoritesController.initialize());
     _initializeStores();
   }
 
   void _initializeStores() {
     if (kReleaseMode) {
       if (widget.config.hasSupabaseConfiguration) {
-        _loadSupabaseStores();
+        unawaited(_publicStoresController?.initialize());
       }
       return;
     }
 
     switch (widget.config.effectiveStoreDataMode) {
       case StoreDataMode.pilot:
-        _stores = itaewonStoreLocations;
+        _applyLoadedStores(itaewonStoreLocations);
       case StoreDataMode.staging:
         _loadStagingStores();
       case StoreDataMode.supabase:
         if (widget.config.hasSupabaseConfiguration) {
-          _loadSupabaseStores();
+          unawaited(_publicStoresController?.initialize());
         }
+    }
+  }
+
+  PublicStoreController? _createPublicStoresController() {
+    if (!widget.config.usesSupabaseStoreData ||
+        !widget.config.hasSupabaseConfiguration) {
+      return null;
+    }
+    return PublicStoreController(
+      () {
+        final loader = widget.supabaseStoreLoader;
+        if (loader == null) {
+          throw const SupabaseStoreLoadException();
+        }
+        return loader();
+      },
+      requestTimeout: widget.storeLoadTimeout,
+      refreshInterval: widget.storeRefreshInterval,
+      clock: widget.storeClock,
+      scheduler: widget.storeRefreshScheduler,
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _publicStoresController;
+    switch (state) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        if (!_enteredBackground) {
+          _enteredBackground = true;
+          _interruptCameraMoves();
+          controller?.enterBackground();
+          _restoreLocationOnResume =
+              _currentLocation != null ||
+              _isRequestingCurrentLocation ||
+              _nearbySortEnabled;
+          _restoreNearbyOnResume = _nearbySortEnabled;
+          ++_locationUiGeneration;
+          _locationController.enterBackground();
+        }
+      case AppLifecycleState.resumed:
+        if (_enteredBackground) {
+          _enteredBackground = false;
+          unawaited(controller?.enterForeground());
+          _locationController.enterForeground();
+          unawaited(_revalidateLocationAfterResume());
+        }
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraInterruption.complete();
+    _mapController = null;
+    ++_locationUiGeneration;
+    _locationController
+      ..removeListener(_handleLocationChanged)
+      ..dispose();
+    _publicStoresController
+      ?..removeListener(_handlePublicStoresChanged)
+      ..dispose();
+    _favoritesController
+      ..removeListener(_handleFavoritesChanged)
+      ..dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _listScrollController.dispose();
+    _regionSnapshots.dispose();
     super.dispose();
   }
 
@@ -169,22 +333,197 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('버거맵 코리아'),
-        actions: widget.config.showsDevelopmentDiagnostics
-            ? [
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Center(
-                    child: Chip(
-                      label: Text('기술 검증 · ${widget.config.environmentLabel}'),
-                      visualDensity: VisualDensity.compact,
+        title: const Text(
+          '버거맵 코리아',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          IconButton(
+            key: appInfoButtonKey,
+            tooltip: '정보·지원',
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => AppInfoScreen(
+                  supportUrl: widget.config.supportUrl,
+                  privacyPolicyUrl: widget.config.privacyPolicyUrl,
+                  operatorName: widget.config.operatorName,
+                ),
+              ),
+            ),
+          ),
+          if (_publicStoresController?.loadState == PublicStoreLoadState.ready)
+            IconButton(
+              key: storeDataRefreshButtonKey,
+              onPressed: _loadSupabaseStores,
+              tooltip: '공개 매장 새로고침',
+              icon: const Icon(Icons.refresh),
+            ),
+          if (widget.config.showsDevelopmentDiagnostics)
+            Padding(
+              padding: EdgeInsets.only(
+                right: _publicStoresController == null ? 12 : 4,
+              ),
+              child: Center(
+                child:
+                    MediaQuery.sizeOf(context).width < 600 ||
+                        MediaQuery.textScalerOf(context).scale(14) > 20
+                    ? Tooltip(
+                        message: '기술 검증 · ${widget.config.environmentLabel}',
+                        child: const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Icon(Icons.science_outlined),
+                        ),
+                      )
+                    : Chip(
+                        label: Text(
+                          '기술 검증 · ${widget.config.environmentLabel}',
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+              ),
+            ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (_favoritesController.loadState ==
+                    FavoriteStoreIdsLoadState.loadError ||
+                _favoritesController.hasSaveErrors)
+              _buildFavoritesFailureNotice(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '용산구 우선',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _viewTab(
+                      false,
+                      explorerMapTabKey,
+                      '지도',
+                      Icons.map_outlined,
                     ),
                   ),
-                ),
-              ]
-            : null,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _viewTab(true, explorerListTabKey, '목록', Icons.list),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Keep the native surface mounted across data refreshes and
+                  // view changes. An invalid snapshot always supplies no markers.
+                  Offstage(
+                    offstage: _showList || _visiblePublicStores == null,
+                    child: TickerMode(
+                      enabled: !_showList && _visiblePublicStores != null,
+                      child: _buildPersistentMap(),
+                    ),
+                  ),
+                  _buildBody(context),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-      body: _buildBody(context),
+    );
+  }
+
+  Widget _viewTab(bool list, Key key, String label, IconData icon) {
+    return Semantics(
+      selected: _showList == list,
+      child: OutlinedButton.icon(
+        key: key,
+        onPressed: () {
+          _searchFocusNode.unfocus();
+          setState(() => _showList = list);
+        },
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          backgroundColor: _showList == list
+              ? Theme.of(context).colorScheme.secondaryContainer
+              : null,
+        ),
+        icon: Icon(icon),
+        label: Text(label),
+      ),
+    );
+  }
+
+  Widget _buildFavoritesFailureNotice() {
+    final loadFailed =
+        _favoritesController.loadState == FavoriteStoreIdsLoadState.loadError;
+    return Semantics(
+      liveRegion: true,
+      child: MaterialBanner(
+        content: Text(
+          loadFailed
+              ? '즐겨찾기를 불러오지 못했습니다. 저장된 목록은 변경하지 않았습니다.'
+              : '즐겨찾기 변경을 저장하지 못했습니다. 이전 저장 상태를 유지합니다.',
+        ),
+        actions: [
+          TextButton(
+            key: loadFailed
+                ? favoritesRetryButtonKey
+                : favoritesSaveRetryButtonKey,
+            onPressed: _favoritesController.isSavingAny
+                ? null
+                : loadFailed
+                ? _favoritesController.retry
+                : _favoritesController.retryFailedSaves,
+            child: Text(loadFailed ? '다시 시도' : '다시 저장'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersistentMap() {
+    if (!_hasLoadedStores ||
+        !widget.config.hasGoogleMapsApiKey ||
+        _mapError != null) {
+      return const SizedBox.shrink();
+    }
+    final markers = buildStoreMarkers(_filteredStores, _selectStore);
+    final builder = widget.mapSurfaceBuilder;
+    if (builder != null) {
+      return builder(markers, _handleMapTap);
+    }
+    return GoogleMap(
+      initialCameraPosition: _initialCameraPosition,
+      markers: markers,
+      clusterManagers: <ClusterManager>{_storeMarkerClusterManager},
+      onMapCreated: _handleMapCreated,
+      onTap: _handleMapTap,
+      onCameraMoveStarted: () {
+        if (mounted) setState(() => _cameraStatus = '카메라 이동 중');
+      },
+      onCameraMove: (position) {
+        if (mounted) _lastCameraPosition = position;
+      },
+      onCameraIdle: () {
+        if (mounted) setState(() => _cameraStatus = '카메라 이동 완료');
+      },
+      myLocationEnabled: _isCurrentLocationEnabled,
+      myLocationButtonEnabled: false,
+      mapToolbarEnabled: false,
+      zoomControlsEnabled: false,
     );
   }
 
@@ -194,45 +533,73 @@ class _MapScreenState extends State<MapScreen> {
       return const MissingSupabaseConfigView();
     }
 
-    if (_storeLoadError != null) {
-      if (widget.config.usesSupabaseStoreData) {
-        return StoreDataErrorView(onRetry: _loadSupabaseStores);
+    final publicStoresController = _publicStoresController;
+    if (publicStoresController != null) {
+      switch (publicStoresController.loadState) {
+        case PublicStoreLoadState.initialLoading:
+          return _scrollableStatus(const StoreDataLoadingView());
+        case PublicStoreLoadState.refreshing:
+          return _scrollableStatus(const StoreDataRefreshingView());
+        case PublicStoreLoadState.error:
+          return _scrollableStatus(
+            StoreDataErrorView(onRetry: _loadSupabaseStores),
+          );
+        case PublicStoreLoadState.empty:
+          return _scrollableStatus(
+            StoreDataEmptyView(onRefresh: _loadSupabaseStores),
+          );
+        case PublicStoreLoadState.ready:
+          break;
       }
+    }
+
+    if (_storeLoadError != null) {
       return MapErrorView(
         error: _storeLoadError!,
         showDiagnostics: widget.config.showsDevelopmentDiagnostics,
       );
     }
 
-    final stores = _stores;
+    final stores = _visiblePublicStores;
     if (stores == null) {
       return const StoreDataLoadingView();
     }
 
-    if (widget.config.usesSupabaseStoreData && stores.isEmpty) {
-      return const StoreDataEmptyView();
-    }
-
-    if (!widget.config.hasGoogleMapsApiKey) {
-      return MissingApiKeyView(stores: stores);
-    }
-
-    if (_mapError != null) {
-      return MapErrorView(
-        error: _mapError!,
-        showDiagnostics: widget.config.showsDevelopmentDiagnostics,
+    final visibleStores = _filteredStores;
+    if (_showList) {
+      return StoreListPanel(
+        controller: _listScrollController,
+        searchPanel: _buildSearchPanel(
+          stores,
+          visibleStores,
+          showResults: false,
+        ),
+        stores: visibleStores,
+        favoriteIds: _favoriteStoreIds,
+        favoritesReady: _favoritesLoaded,
+        emptyMessage:
+            _favoritesOnly &&
+                normalizeStoreSearchText(_searchQuery).isEmpty &&
+                _selectedBurgerStyle == null &&
+                _selectedRegionFilter == null
+            ? '즐겨찾기한 공개 매장이 없습니다.'
+            : '검색 결과가 없습니다.',
+        onReset: _resetCriteria,
+        onOpen: _openStoreDetails,
+        onShowOnMap: _showStoreOnMap,
       );
     }
 
-    final availableStyles = availableBurgerStyles(stores);
-    final visibleStores = filterStoreLocations(
-      stores,
-      _searchQuery,
-      burgerStyle: _selectedBurgerStyle,
-      favoriteStoreIds: _favoriteStoreIds,
-      favoritesOnly: _favoritesOnly,
-    );
-    final markers = buildStoreMarkers(visibleStores, _selectStore);
+    if (!widget.config.hasGoogleMapsApiKey) {
+      return widget.config.showsDevelopmentDiagnostics
+          ? MissingApiKeyView(stores: stores)
+          : const MapErrorView(error: 'map unavailable');
+    }
+
+    if (_mapError != null) {
+      return MapErrorView(error: _mapError!, showDiagnostics: false);
+    }
+
     final mapSurfaceBuilder = widget.mapSurfaceBuilder;
     final currentZoom = _lastCameraPosition.zoom.clamp(
       minimumMapZoom,
@@ -246,36 +613,8 @@ class _MapScreenState extends State<MapScreen> {
 
     return Stack(
       children: [
-        Positioned.fill(
-          child: mapSurfaceBuilder == null
-              ? GoogleMap(
-                  initialCameraPosition: _initialCameraPosition,
-                  markers: markers,
-                  clusterManagers: <ClusterManager>{_storeMarkerClusterManager},
-                  onMapCreated: _handleMapCreated,
-                  onTap: _handleMapTap,
-                  onCameraMoveStarted: () {
-                    setState(() {
-                      _cameraStatus = '카메라 이동 중';
-                    });
-                  },
-                  onCameraMove: (position) {
-                    _lastCameraPosition = position;
-                  },
-                  onCameraIdle: () {
-                    setState(() {
-                      _cameraStatus = '카메라 이동 완료';
-                    });
-                  },
-                  myLocationEnabled: _isCurrentLocationEnabled,
-                  myLocationButtonEnabled: false,
-                  mapToolbarEnabled: false,
-                  zoomControlsEnabled: false,
-                )
-              : mapSurfaceBuilder(markers, _handleMapTap),
-        ),
         if (!_isMapReady && mapSurfaceBuilder == null)
-          const _MapLoadingOverlay(),
+          const IgnorePointer(child: _MapLoadingOverlay()),
         if (_isMapReady || mapSurfaceBuilder != null)
           Positioned(
             left: 0,
@@ -292,25 +631,14 @@ class _MapScreenState extends State<MapScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _StoreSearchPanel(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                query: _searchQuery,
-                results: visibleStores,
-                availableStyles: availableStyles,
-                selectedBurgerStyle: _selectedBurgerStyle,
-                favoritesOnly: _favoritesOnly,
-                favoritesLoaded: _favoritesLoaded,
-                onChanged: _handleSearchChanged,
-                onClear: _clearSearch,
-                onSelected: _selectSearchResult,
-                onBurgerStyleSelected: _handleBurgerStyleChanged,
-                onFavoritesOnlyChanged: _handleFavoritesOnlyChanged,
-              ),
+              _buildSearchPanel(stores, visibleStores),
               if (widget.config.showsDevelopmentDiagnostics &&
                   normalizeStoreSearchText(_searchQuery).isEmpty &&
                   _selectedBurgerStyle == null &&
-                  !_favoritesOnly) ...[
+                  _selectedRegionFilter == null &&
+                  !_allStoresSelected &&
+                  !_favoritesOnly &&
+                  !_nearbySortEnabled) ...[
                 const SizedBox(height: 8),
                 _CameraStatusCard(
                   status: _cameraStatus,
@@ -372,6 +700,114 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Widget _buildSearchPanel(
+    List<StoreLocation> stores,
+    List<StoreLocation> results, {
+    bool showResults = true,
+  }) {
+    return _StoreSearchPanel(
+      controller: _searchController,
+      focusNode: _searchFocusNode,
+      query: _searchQuery,
+      results: results,
+      availableStyles: availableBurgerStyles(stores),
+      selectedBurgerStyle: _selectedBurgerStyle,
+      allStoresSelected: _allStoresSelected,
+      selectedRegion: _selectedRegionFilter,
+      unknownRegionCount: stores.where((store) => store.region == null).length,
+      onRegionPressed: _showRegionSelection,
+      favoritesOnly: _favoritesOnly,
+      favoritesLoaded: _favoritesLoaded,
+      nearbySortEnabled: _nearbySortEnabled,
+      locationNotice: _currentLocation == null
+          ? null
+          : _currentLocation!.hasWideAccuracy
+          ? '위치 오차가 커서 가까운 순이 정확하지 않을 수 있습니다.'
+          : _currentLocation!.isApproximate
+          ? '대략적인 위치 기준입니다. 가까운 매장 간 순서는 다를 수 있습니다.'
+          : _currentLocation!.precision == CurrentLocationPrecision.unknown
+          ? '위치 정확도를 확인할 수 없습니다. 가까운 순은 참고용입니다.'
+          : null,
+      hasCurrentLocation: _currentLocation != null,
+      isRequestingCurrentLocation: _isRequestingCurrentLocation,
+      onChanged: _handleSearchChanged,
+      onClear: _clearSearch,
+      onSelected: _selectSearchResult,
+      onBurgerStyleSelected: _handleBurgerStyleChanged,
+      onAllStoresChanged: _handleAllStoresChanged,
+      onFavoritesOnlyChanged: _handleFavoritesOnlyChanged,
+      onNearbySortChanged: _handleNearbySortChanged,
+      showResults: showResults,
+    );
+  }
+
+  Widget _scrollableStatus(Widget child) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  void _resetCriteria({bool showAll = false}) {
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _searchQuery = '';
+      _selectedBurgerStyle = null;
+      _allStoresSelected = showAll;
+      _selectedRegionFilter = null;
+      _favoritesOnly = false;
+      _nearbySortEnabled = false;
+      _nearbySelectionGeneration++;
+      _restoreNearbyOnResume = false;
+      _selectedStore = null;
+    });
+  }
+
+  void _handleAllStoresChanged(bool selected) {
+    if (selected) {
+      _resetCriteria(showAll: true);
+    } else {
+      setState(() => _allStoresSelected = false);
+    }
+  }
+
+  Future<void> _showRegionSelection() async {
+    if (_regionPickerOpen || !mounted) return;
+    _regionPickerOpen = true;
+    _searchFocusNode.unfocus();
+    try {
+      final result = await Navigator.of(context).push<RegionSelectionResult>(
+        MaterialPageRoute<RegionSelectionResult>(
+          builder: (_) => RegionSelectionScreen(
+            storesListenable: _regionSnapshots,
+            initialSelection: _selectedRegionFilter,
+          ),
+        ),
+      );
+      if (!mounted || result == null) return;
+      setState(() {
+        _selectedRegionFilter = result.selection;
+        _allStoresSelected = false;
+        if (_selectedStore != null &&
+            !_filteredStores.any((store) => store.id == _selectedStore!.id)) {
+          _selectedStore = null;
+        }
+      });
+    } finally {
+      _regionPickerOpen = false;
+    }
+  }
+
+  Future<void> _showStoreOnMap(StoreLocation store) async {
+    setState(() => _showList = false);
+    await _selectSearchResult(store);
+  }
+
   Future<void> _loadStagingStores() async {
     try {
       final loader = widget.stagingStoreLoader;
@@ -392,80 +828,77 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> _loadSupabaseStores() async {
-    if (_storeLoadError != null || _stores != null) {
+  Future<void> _loadSupabaseStores() {
+    return _publicStoresController?.refresh() ?? Future<void>.value();
+  }
+
+  void _handlePublicStoresChanged() {
+    if (!mounted) {
+      return;
+    }
+    final stores = _publicStoresController?.stores;
+    if (stores == null) {
+      _regionSnapshots.value = null;
       setState(() {
-        _storeLoadError = null;
-        _stores = null;
         _selectedStore = null;
       });
+      return;
     }
-
-    try {
-      final loader = widget.supabaseStoreLoader;
-      if (loader == null) {
-        throw const SupabaseStoreLoadException();
-      }
-      final stores = await loader();
-      if (!mounted) {
-        return;
-      }
-      _applyLoadedStores(stores);
-    } on Object {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _storeLoadError = const SupabaseStoreLoadException();
-      });
-    }
+    _applyLoadedStores(stores);
   }
 
-  Future<void> _loadFavoriteStoreIds() async {
-    try {
-      final storeIds = await _favoriteStoreIdsStore.load();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _favoriteStoreIds = storeIds;
-        _favoritesLoaded = true;
-      });
-    } on Object {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _favoriteStoreIds = const <String>{};
-        _favoritesLoaded = true;
-      });
+  void _handleFavoritesChanged() {
+    if (!mounted) {
+      return;
     }
-  }
-
-  void _selectStore(StoreLocation store) {
+    final visibleStoreIds = _visibleStoreIds(
+      query: _searchQuery,
+      burgerStyle: _selectedBurgerStyle,
+      favoriteStoreIds: _favoriteStoreIds,
+      favoritesOnly: _favoritesLoaded && _favoritesOnly,
+    );
     setState(() {
-      _selectedStore = store;
+      if (!_favoritesLoaded) {
+        _favoritesOnly = false;
+      }
+      if (_selectedStore != null &&
+          !visibleStoreIds.contains(_selectedStore!.id)) {
+        _selectedStore = null;
+      }
     });
   }
 
+  void _selectStore(StoreLocation store) {
+    if (!mounted) return;
+    // A queued native marker callback may refer to an earlier snapshot.
+    for (final current in _filteredStores) {
+      if (current.id == store.id) {
+        setState(() => _selectedStore = current);
+        return;
+      }
+    }
+  }
+
   void _handleMapTap(LatLng _) {
+    if (!mounted) return;
     setState(() {
       _selectedStore = null;
     });
   }
 
   void _handleSearchChanged(String query) {
-    final stores = _stores ?? const <StoreLocation>[];
-    final visibleStoreIds = filterStoreLocations(
-      stores,
-      query,
+    final visibleStoreIds = _visibleStoreIds(
+      query: query,
       burgerStyle: _selectedBurgerStyle,
       favoriteStoreIds: _favoriteStoreIds,
       favoritesOnly: _favoritesOnly,
-    ).map((store) => store.id).toSet();
+    );
 
     setState(() {
       _searchQuery = query;
+      if (normalizeStoreSearchText(query).isNotEmpty) {
+        _allStoresSelected = false;
+      }
       if (_selectedStore != null &&
           !visibleStoreIds.contains(_selectedStore!.id)) {
         _selectedStore = null;
@@ -474,17 +907,16 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _handleBurgerStyleChanged(BurgerStyle? burgerStyle) {
-    final stores = _stores ?? const <StoreLocation>[];
-    final visibleStoreIds = filterStoreLocations(
-      stores,
-      _searchQuery,
+    final visibleStoreIds = _visibleStoreIds(
+      query: _searchQuery,
       burgerStyle: burgerStyle,
       favoriteStoreIds: _favoriteStoreIds,
       favoritesOnly: _favoritesOnly,
-    ).map((store) => store.id).toSet();
+    );
 
     setState(() {
       _selectedBurgerStyle = burgerStyle;
+      _allStoresSelected = false;
       if (_selectedStore != null &&
           !visibleStoreIds.contains(_selectedStore!.id)) {
         _selectedStore = null;
@@ -493,17 +925,19 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _handleFavoritesOnlyChanged(bool favoritesOnly) {
-    final stores = _stores ?? const <StoreLocation>[];
-    final visibleStoreIds = filterStoreLocations(
-      stores,
-      _searchQuery,
+    if (!_favoritesLoaded) {
+      return;
+    }
+    final visibleStoreIds = _visibleStoreIds(
+      query: _searchQuery,
       burgerStyle: _selectedBurgerStyle,
       favoriteStoreIds: _favoriteStoreIds,
       favoritesOnly: favoritesOnly,
-    ).map((store) => store.id).toSet();
+    );
 
     setState(() {
       _favoritesOnly = favoritesOnly;
+      if (favoritesOnly) _allStoresSelected = false;
       if (_selectedStore != null &&
           !visibleStoreIds.contains(_selectedStore!.id)) {
         _selectedStore = null;
@@ -518,26 +952,58 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _selectSearchResult(StoreLocation store) async {
+    if (!mounted ||
+        _enteredBackground ||
+        !_visibleStoreIds(
+          query: _searchQuery,
+          burgerStyle: _selectedBurgerStyle,
+          favoriteStoreIds: _favoriteStoreIds,
+          favoritesOnly: _favoritesOnly,
+        ).contains(store.id)) {
+      return;
+    }
     _searchFocusNode.unfocus();
     _selectStore(store);
 
-    final storeCameraMover = widget.storeCameraMover;
-    if (storeCameraMover != null) {
-      await storeCameraMover(store);
-      return;
+    try {
+      final storeCameraMover = widget.storeCameraMover;
+      if (storeCameraMover != null) {
+        await _moveCamera(() => storeCameraMover(store));
+        return;
+      }
+      final controller = _mapController;
+      if (controller == null) {
+        return;
+      }
+      await _moveCamera(
+        () => controller.animateCamera(
+          CameraUpdate.newLatLngZoom(
+            LatLng(store.latitude, store.longitude),
+            16,
+          ),
+        ),
+      );
+    } on Object {
+      _showMapMovementError();
     }
-    if (!_controller.isCompleted) {
-      return;
-    }
+  }
 
-    final controller = await _controller.future;
-    await controller.animateCamera(
-      CameraUpdate.newLatLngZoom(LatLng(store.latitude, store.longitude), 16),
+  void _showMapMovementError() {
+    if (!mounted || _enteredBackground) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('지도를 이동하지 못했습니다. 목록에서 매장 상세를 볼 수 있습니다.')),
     );
   }
 
   Future<void> _handleClusterTap(Cluster cluster) async {
-    if (!mounted || _isMovingToCluster) {
+    if (!mounted || _enteredBackground || _isMovingToCluster) {
+      return;
+    }
+    final visibleIds = _filteredStores
+        .map((store) => MarkerId(store.id))
+        .toSet();
+    if (cluster.markerIds.isEmpty ||
+        !visibleIds.containsAll(cluster.markerIds)) {
       return;
     }
 
@@ -551,126 +1017,142 @@ class _MapScreenState extends State<MapScreen> {
     try {
       final clusterCameraMover = widget.clusterCameraMover;
       if (clusterCameraMover != null) {
-        await clusterCameraMover(cluster.bounds, clusterBoundsPadding);
+        await _moveCamera(
+          () => clusterCameraMover(cluster.bounds, clusterBoundsPadding),
+        );
         return;
       }
-      if (!_controller.isCompleted || !mounted) {
+      final controller = _mapController;
+      if (controller == null) {
         return;
       }
-
-      final controller = await _controller.future;
-      if (!mounted) {
-        return;
-      }
-      await controller.animateCamera(
-        CameraUpdate.newLatLngBounds(cluster.bounds, clusterBoundsPadding),
+      await _moveCamera(
+        () => controller.animateCamera(
+          CameraUpdate.newLatLngBounds(cluster.bounds, clusterBoundsPadding),
+        ),
       );
     } on Object {
-      // Cluster camera movement is best-effort during map lifecycle changes.
+      _showMapMovementError();
     } finally {
       _isMovingToCluster = false;
     }
   }
 
-  Future<void> _requestCurrentLocation() async {
-    if (!mounted || _isRequestingCurrentLocation) {
-      return;
-    }
-
-    setState(() {
-      _isRequestingCurrentLocation = true;
-    });
-
-    try {
-      final serviceEnabled = await _currentLocationService
-          .isLocationServiceEnabled();
-      if (!mounted) {
-        return;
-      }
-      if (!serviceEnabled) {
-        _disableCurrentLocation();
-        _showCurrentLocationMessage(
-          '위치 서비스가 꺼져 있습니다. 기기 설정에서 위치 서비스를 켠 뒤 다시 시도해 주세요.',
-        );
-        return;
-      }
-
-      var permission = await _currentLocationService.checkPermission();
-      if (!mounted) {
-        return;
-      }
-      if (permission == LocationPermissionStatus.denied) {
-        permission = await _currentLocationService.requestPermission();
-        if (!mounted) {
-          return;
-        }
-      }
-
-      if (!_hasLocationPermission(permission)) {
-        _disableCurrentLocation();
-        _showCurrentLocationMessage(
-          permission == LocationPermissionStatus.deniedForever
-              ? '현재 위치 권한이 영구적으로 거부되었습니다. 설정에서 권한을 허용해 주세요.'
-              : '현재 위치 권한이 허용되지 않았습니다. 필요할 때 다시 요청할 수 있습니다.',
-          showSettingsAction:
-              permission == LocationPermissionStatus.deniedForever,
-        );
-        return;
-      }
-
-      _setCurrentLocationEnabled(true);
-      final location = await _currentLocationService.getCurrentLocation();
-      if (!mounted) {
-        return;
-      }
-
-      final target = LatLng(location.latitude, location.longitude);
-      final currentLocationCameraMover = widget.currentLocationCameraMover;
-      if (currentLocationCameraMover != null) {
-        await currentLocationCameraMover(target, currentLocationZoom);
-        return;
-      }
-      if (!_controller.isCompleted) {
-        return;
-      }
-
-      final controller = await _controller.future;
-      if (!mounted) {
-        return;
-      }
-      await controller.animateCamera(
-        CameraUpdate.newLatLngZoom(target, currentLocationZoom),
-      );
-    } on Object {
-      if (mounted) {
-        _showCurrentLocationMessage('현재 위치를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isRequestingCurrentLocation = false;
-        });
-      }
-    }
-  }
-
-  bool _hasLocationPermission(LocationPermissionStatus permission) {
-    return permission == LocationPermissionStatus.whileInUse ||
-        permission == LocationPermissionStatus.always;
-  }
-
-  void _disableCurrentLocation() {
-    _setCurrentLocationEnabled(false);
-  }
-
-  void _setCurrentLocationEnabled(bool enabled) {
-    if (_isCurrentLocationEnabled == enabled) {
-      return;
-    }
+  void _handleLocationChanged() {
+    if (!mounted) return;
+    final enabled = _locationController.location != null && !_enteredBackground;
+    final changed = enabled != _isCurrentLocationEnabled;
     setState(() {
       _isCurrentLocationEnabled = enabled;
+      if (!enabled && !_locationController.loading) _nearbySortEnabled = false;
     });
-    widget.onMyLocationEnabledChanged?.call(enabled);
+    if (changed) widget.onMyLocationEnabledChanged?.call(enabled);
+  }
+
+  Future<CurrentLocation?> _requestCurrentLocation() => _resolveCurrentLocation(
+    moveCamera: true,
+    requestPermissionIfDenied: true,
+  );
+
+  Future<CurrentLocation?> _resolveCurrentLocation({
+    required bool moveCamera,
+    required bool requestPermissionIfDenied,
+  }) async {
+    if (!mounted || _enteredBackground || _isRequestingCurrentLocation) {
+      return null;
+    }
+    final generation = ++_locationUiGeneration;
+    final location = await _locationController.request(
+      allowPermissionPrompt: requestPermissionIfDenied,
+    );
+    if (!mounted || _enteredBackground || generation != _locationUiGeneration) {
+      return null;
+    }
+    if (location == null) {
+      final failure = _locationController.failure;
+      _showCurrentLocationMessage(switch (failure) {
+        CurrentLocationFailure.serviceDisabled =>
+          '위치 서비스가 꺼져 있습니다. 기기 설정에서 위치 서비스를 켠 뒤 다시 시도해 주세요.',
+        CurrentLocationFailure.deniedForever =>
+          '현재 위치 권한이 영구적으로 거부되었습니다. 설정에서 권한을 허용해 주세요.',
+        CurrentLocationFailure.denied =>
+          '현재 위치 권한이 허용되지 않았습니다. 필요할 때 다시 요청할 수 있습니다.',
+        _ => '현재 위치를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      }, showSettingsAction: failure == CurrentLocationFailure.deniedForever);
+      return null;
+    }
+    if (!moveCamera) return location;
+    try {
+      final target = LatLng(location.latitude, location.longitude);
+      final mover = widget.currentLocationCameraMover;
+      if (mover != null) {
+        await _moveCamera(
+          () => mover(target, currentLocationZoom),
+          timeout: widget.currentLocationTimeout,
+        );
+      } else if (_mapController case final controller?) {
+        if (!mounted ||
+            _enteredBackground ||
+            generation != _locationUiGeneration) {
+          return null;
+        }
+        await _moveCamera(
+          () => controller.animateCamera(
+            CameraUpdate.newLatLngZoom(target, currentLocationZoom),
+          ),
+          timeout: widget.currentLocationTimeout,
+        );
+      }
+    } on Object {
+      if (mounted &&
+          !_enteredBackground &&
+          generation == _locationUiGeneration) {
+        _showCurrentLocationMessage('현재 위치로 지도를 이동하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      }
+    }
+    return mounted && !_enteredBackground && generation == _locationUiGeneration
+        ? _locationController.location
+        : null;
+  }
+
+  Future<void> _handleNearbySortChanged(bool enabled) async {
+    if (!mounted || _enteredBackground) return;
+    final generation = ++_nearbySelectionGeneration;
+    if (!enabled) {
+      setState(() => _nearbySortEnabled = false);
+      return;
+    }
+    final location = _freshCurrentLocation ?? await _requestCurrentLocation();
+    if (!mounted ||
+        _enteredBackground ||
+        generation != _nearbySelectionGeneration ||
+        location == null ||
+        _locationController.location == null) {
+      return;
+    }
+    setState(() {
+      _nearbySortEnabled = true;
+      _allStoresSelected = false;
+    });
+  }
+
+  Future<void> _revalidateLocationAfterResume() async {
+    if (!_restoreLocationOnResume) return;
+    final restoreNearby = _restoreNearbyOnResume;
+    final generation = _nearbySelectionGeneration;
+    _restoreLocationOnResume = false;
+    _restoreNearbyOnResume = false;
+    final location = await _resolveCurrentLocation(
+      moveCamera: false,
+      requestPermissionIfDenied: false,
+    );
+    if (mounted &&
+        !_enteredBackground &&
+        generation == _nearbySelectionGeneration &&
+        location != null &&
+        restoreNearby) {
+      setState(() => _nearbySortEnabled = true);
+    }
   }
 
   void _showCurrentLocationMessage(
@@ -709,7 +1191,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _changeMapZoom(double delta) async {
-    if (_isChangingZoom) {
+    if (!mounted || _enteredBackground || _isChangingZoom) {
       return;
     }
 
@@ -731,15 +1213,21 @@ class _MapScreenState extends State<MapScreen> {
     try {
       final mapZoomMover = widget.mapZoomMover;
       if (mapZoomMover != null) {
-        await mapZoomMover(targetZoom.toDouble());
-      } else {
-        if (!_controller.isCompleted) {
+        if (!await _moveCamera(() => mapZoomMover(targetZoom.toDouble()))) {
           return;
         }
-        final controller = await _controller.future;
-        await controller.animateCamera(
-          CameraUpdate.zoomTo(targetZoom.toDouble()),
-        );
+      } else {
+        final controller = _mapController;
+        if (controller == null) {
+          return;
+        }
+        if (!await _moveCamera(
+          () => controller.animateCamera(
+            CameraUpdate.zoomTo(targetZoom.toDouble()),
+          ),
+        )) {
+          return;
+        }
       }
 
       if (!mounted) {
@@ -753,6 +1241,8 @@ class _MapScreenState extends State<MapScreen> {
           bearing: _lastCameraPosition.bearing,
         );
       });
+    } on Object {
+      _showMapMovementError();
     } finally {
       if (mounted) {
         setState(() {
@@ -762,8 +1252,29 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  void _interruptCameraMoves() {
+    _cameraInterruption.complete();
+    _cameraInterruption = Completer<void>();
+  }
+
+  Future<bool> _moveCamera(
+    Future<void> Function() move, {
+    Duration? timeout,
+  }) async {
+    if (!mounted || _enteredBackground) return false;
+    final interruption = _cameraInterruption;
+    // End our wait on lifecycle changes; the native operation may still finish.
+    // Racing before timeout also cancels its timer when the screen is disposed.
+    await Future.any<void>([
+      Future<void>.sync(move),
+      interruption.future,
+    ]).timeout(timeout ?? widget.mapCameraTimeout);
+    return mounted && !_enteredBackground && !interruption.isCompleted;
+  }
+
   Future<void> _openStoreDetails(StoreLocation store) async {
     final externalUriLauncher = widget.externalUriLauncher;
+    final publicStoresController = _publicStoresController;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (context) => externalUriLauncher == null
@@ -772,6 +1283,17 @@ class _MapScreenState extends State<MapScreen> {
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>
                     _setStoreFavorite(store, isFavorite),
+                favoriteState: _favoritesController,
+                isFavoriteProvider: () =>
+                    _favoritesController.storeIds.contains(store.id),
+                canChangeFavoriteProvider: () =>
+                    _favoritesController.isReady &&
+                    !_favoritesController.isSaving(store.id),
+                publicStoreState: publicStoresController,
+                storeProvider: publicStoresController == null
+                    ? null
+                    : () => publicStoresController.storeById(store.id),
+                unavailableMessageProvider: _publicStoreUnavailableMessage,
               )
             : StoreDetailScreen(
                 store: store,
@@ -779,60 +1301,92 @@ class _MapScreenState extends State<MapScreen> {
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>
                     _setStoreFavorite(store, isFavorite),
+                favoriteState: _favoritesController,
+                isFavoriteProvider: () =>
+                    _favoritesController.storeIds.contains(store.id),
+                canChangeFavoriteProvider: () =>
+                    _favoritesController.isReady &&
+                    !_favoritesController.isSaving(store.id),
+                publicStoreState: publicStoresController,
+                storeProvider: publicStoresController == null
+                    ? null
+                    : () => publicStoresController.storeById(store.id),
+                unavailableMessageProvider: _publicStoreUnavailableMessage,
               ),
       ),
     );
   }
 
   Future<void> _setStoreFavorite(StoreLocation store, bool isFavorite) async {
-    final nextStoreIds = Set<String>.of(_favoriteStoreIds);
-    if (isFavorite) {
-      nextStoreIds.add(store.id);
-    } else {
-      nextStoreIds.remove(store.id);
-    }
-    await _favoriteStoreIdsStore.save(nextStoreIds);
-    if (!mounted) {
-      return;
-    }
+    await _favoritesController.setFavorite(store.id, isFavorite);
+  }
 
-    final visibleStoreIds = filterStoreLocations(
-      _stores ?? const <StoreLocation>[],
-      _searchQuery,
-      burgerStyle: _selectedBurgerStyle,
-      favoriteStoreIds: nextStoreIds,
-      favoritesOnly: _favoritesOnly,
-    ).map((item) => item.id).toSet();
-    setState(() {
-      _favoriteStoreIds = Set<String>.unmodifiable(nextStoreIds);
-      if (_selectedStore != null &&
-          !visibleStoreIds.contains(_selectedStore!.id)) {
-        _selectedStore = null;
-      }
-    });
+  String _publicStoreUnavailableMessage() {
+    return switch (_publicStoresController?.loadState) {
+      PublicStoreLoadState.initialLoading ||
+      PublicStoreLoadState.refreshing => '매장 정보를 새로 확인하고 있습니다.',
+      PublicStoreLoadState.error => '매장 정보를 불러오지 못했습니다. 지도에서 다시 시도해 주세요.',
+      _ => '이 매장은 더 이상 공개 목록에서 제공되지 않습니다.',
+    };
   }
 
   void _applyLoadedStores(List<StoreLocation> stores) {
     final cameraPosition = cameraPositionForStores(stores);
+    final selectedStoreId = _selectedStore?.id;
+    StoreLocation? selectedStore;
+    for (final store in stores) {
+      if (store.id == selectedStoreId) {
+        selectedStore = store;
+        break;
+      }
+    }
     setState(() {
-      _stores = stores;
+      if (_publicStoresController == null) {
+        _stores = stores;
+      }
       _selectedBurgerStyle = validBurgerStyleSelection(
         _selectedBurgerStyle,
         stores,
       );
-      _initialCameraPosition = cameraPosition;
-      _lastCameraPosition = cameraPosition;
+      _selectedStore = selectedStore;
+      if (_selectedStore != null &&
+          !_filteredStores.any((store) => store.id == _selectedStore!.id)) {
+        _selectedStore = null;
+      }
+      if (!_hasLoadedStores && stores.isNotEmpty) {
+        _initialCameraPosition = cameraPosition;
+        _lastCameraPosition = cameraPosition;
+        _hasLoadedStores = true;
+      }
     });
+    _regionSnapshots.value = stores;
+  }
+
+  Set<String> _visibleStoreIds({
+    required String query,
+    required BurgerStyle? burgerStyle,
+    required Set<String> favoriteStoreIds,
+    required bool favoritesOnly,
+  }) {
+    return filterStoreLocations(
+      _visiblePublicStores ?? const <StoreLocation>[],
+      query,
+      burgerStyle: burgerStyle,
+      favoriteStoreIds: favoriteStoreIds,
+      favoritesOnly: favoritesOnly,
+      regionFilter: _selectedRegionFilter,
+    ).map((store) => store.id).toSet();
   }
 
   void _handleMapCreated(GoogleMapController controller) {
-    if (!_controller.isCompleted) {
-      _controller.complete(controller);
-    }
+    if (!mounted) return;
+    if (identical(_mapController, controller)) return;
+    _interruptCameraMoves();
 
     setState(() {
-      _isMapReady = true;
-      _cameraStatus = '지도 로딩 완료';
+      _mapController = controller;
+      // Controller creation does not establish successful tile authentication.
+      _cameraStatus = '지도 컨트롤 준비됨';
     });
   }
 }
@@ -845,13 +1399,24 @@ class _StoreSearchPanel extends StatelessWidget {
     required this.results,
     required this.availableStyles,
     required this.selectedBurgerStyle,
+    required this.allStoresSelected,
+    required this.selectedRegion,
+    required this.unknownRegionCount,
+    required this.onRegionPressed,
     required this.favoritesOnly,
     required this.favoritesLoaded,
+    required this.nearbySortEnabled,
+    required this.hasCurrentLocation,
+    required this.isRequestingCurrentLocation,
     required this.onChanged,
     required this.onClear,
     required this.onSelected,
     required this.onBurgerStyleSelected,
+    required this.onAllStoresChanged,
     required this.onFavoritesOnlyChanged,
+    required this.onNearbySortChanged,
+    this.locationNotice,
+    this.showResults = true,
   });
 
   final TextEditingController controller;
@@ -860,21 +1425,45 @@ class _StoreSearchPanel extends StatelessWidget {
   final List<StoreLocation> results;
   final List<BurgerStyle> availableStyles;
   final BurgerStyle? selectedBurgerStyle;
+  final bool allStoresSelected;
+  final StoreRegionFilter? selectedRegion;
+  final int unknownRegionCount;
+  final VoidCallback onRegionPressed;
   final bool favoritesOnly;
   final bool favoritesLoaded;
+  final bool nearbySortEnabled;
+  final bool hasCurrentLocation;
+  final bool isRequestingCurrentLocation;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   final ValueChanged<StoreLocation> onSelected;
   final ValueChanged<BurgerStyle?> onBurgerStyleSelected;
+  final ValueChanged<bool> onAllStoresChanged;
   final ValueChanged<bool> onFavoritesOnlyChanged;
+  final ValueChanged<bool> onNearbySortChanged;
+  final bool showResults;
+  final String? locationNotice;
 
   @override
   Widget build(BuildContext context) {
     final hasQuery = normalizeStoreSearchText(query).isNotEmpty;
+    final textScaler = MediaQuery.textScalerOf(context);
+    // Keep both controls at least 48dp high, while letting 200% text scale
+    // increase their height instead of clipping labels or typed search text.
+    final searchHeight = math.max(48.0, textScaler.scale(16) + 32);
+    final filtersHeight = math.max(48.0, textScaler.scale(16) + 28);
     final hasActiveCriteria =
-        hasQuery || selectedBurgerStyle != null || favoritesOnly;
+        allStoresSelected ||
+        hasQuery ||
+        selectedBurgerStyle != null ||
+        selectedRegion != null ||
+        favoritesOnly ||
+        nearbySortEnabled;
     final emptyResultsMessage =
-        favoritesOnly && !hasQuery && selectedBurgerStyle == null
+        favoritesOnly &&
+            !hasQuery &&
+            selectedBurgerStyle == null &&
+            selectedRegion == null
         ? '즐겨찾기한 매장이 없습니다.'
         : '검색 결과가 없습니다.';
     final maximumResultsHeight = math.min(
@@ -886,101 +1475,185 @@ class _StoreSearchPanel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Material(
-          elevation: 4,
-          borderRadius: BorderRadius.circular(8),
-          clipBehavior: Clip.antiAlias,
-          child: Semantics(
-            label: '매장명 또는 주소 검색',
-            child: TextField(
-              key: storeSearchFieldKey,
-              controller: controller,
-              focusNode: focusNode,
-              onChanged: onChanged,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                label: const ExcludeSemantics(child: Text('매장 검색')),
-                hint: const ExcludeSemantics(child: Text('매장명 또는 주소')),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: hasQuery
-                    ? IconButton(
-                        key: storeSearchClearButtonKey,
-                        onPressed: onClear,
-                        tooltip: '검색어 지우기',
-                        icon: const Icon(Icons.clear),
-                      )
-                    : null,
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
-                border: InputBorder.none,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Material(
-          elevation: 4,
+          elevation: 2,
           borderRadius: BorderRadius.circular(8),
           clipBehavior: Clip.antiAlias,
           color: Theme.of(context).colorScheme.surface,
-          child: SizedBox(
-            height: 52,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              itemCount: availableStyles.length + 2,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Semantics(
-                    button: true,
-                    enabled: favoritesLoaded,
-                    selected: favoritesOnly,
-                    label: '즐겨찾기 매장만 보기',
-                    onTap: favoritesLoaded
-                        ? () => onFavoritesOnlyChanged(!favoritesOnly)
-                        : null,
-                    child: ExcludeSemantics(
-                      child: FilterChip(
-                        key: favoritesOnlyFilterKey,
-                        avatar: Icon(
-                          favoritesOnly ? Icons.star : Icons.star_border,
-                          size: 18,
-                        ),
-                        label: const Text('즐겨찾기'),
-                        selected: favoritesOnly,
-                        onSelected: favoritesLoaded
-                            ? onFavoritesOnlyChanged
-                            : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                label: '매장명 또는 주소 검색',
+                child: SizedBox(
+                  height: searchHeight,
+                  child: TextField(
+                    key: storeSearchFieldKey,
+                    controller: controller,
+                    focusNode: focusNode,
+                    onChanged: onChanged,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hint: const ExcludeSemantics(child: Text('매장명 또는 주소 검색')),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
                       ),
-                    ),
-                  );
-                }
-
-                final style = index == 1 ? null : availableStyles[index - 2];
-                final label = style?.displayLabel ?? '전체';
-                final isSelected = style == selectedBurgerStyle;
-
-                return Semantics(
-                  button: true,
-                  selected: isSelected,
-                  label: '버거 스타일 $label 필터',
-                  onTap: () => onBurgerStyleSelected(style),
-                  child: ExcludeSemantics(
-                    child: ChoiceChip(
-                      key: style == null
-                          ? burgerStyleAllFilterKey
-                          : burgerStyleFilterKey(style),
-                      label: Text(label),
-                      selected: isSelected,
-                      onSelected: (_) => onBurgerStyleSelected(style),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: hasQuery
+                          ? IconButton(
+                              key: storeSearchClearButtonKey,
+                              onPressed: onClear,
+                              tooltip: '검색어 지우기',
+                              icon: const Icon(Icons.clear),
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Theme.of(context).colorScheme.surface,
+                      border: InputBorder.none,
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+              const Divider(height: 1),
+              SizedBox(
+                height: filtersHeight,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: availableStyles.length + 4,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Semantics(
+                        button: true,
+                        enabled: favoritesLoaded,
+                        selected: favoritesOnly,
+                        label: '즐겨찾기 매장만 보기',
+                        onTap: favoritesLoaded
+                            ? () => onFavoritesOnlyChanged(!favoritesOnly)
+                            : null,
+                        child: ExcludeSemantics(
+                          child: FilterChip(
+                            key: favoritesOnlyFilterKey,
+                            avatar: Icon(
+                              favoritesOnly ? Icons.star : Icons.star_border,
+                              size: 18,
+                            ),
+                            label: const Text('즐겨찾기'),
+                            selected: favoritesOnly,
+                            onSelected: favoritesLoaded
+                                ? onFavoritesOnlyChanged
+                                : null,
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (index == 1) {
+                      return Semantics(
+                        button: true,
+                        selected: selectedRegion != null,
+                        label: selectedRegion == null
+                            ? '지역 선택'
+                            : '지역 선택, ${selectedRegion!.pathLabel}',
+                        onTap: onRegionPressed,
+                        child: ExcludeSemantics(
+                          child: FilterChip(
+                            key: regionFilterButtonKey,
+                            avatar: const Icon(
+                              Icons.location_city_outlined,
+                              size: 18,
+                            ),
+                            label: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 160),
+                              child: Text(
+                                selectedRegion?.label ?? '지역',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            selected: selectedRegion != null,
+                            onSelected: (_) => onRegionPressed(),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (index == 2) {
+                      final label = isRequestingCurrentLocation
+                          ? '가까운 순 정렬, 현재 위치를 확인하는 중입니다.'
+                          : hasCurrentLocation
+                          ? '가까운 순 정렬'
+                          : '가까운 순 정렬, 현재 위치가 필요합니다.';
+                      return Semantics(
+                        button: true,
+                        enabled: !isRequestingCurrentLocation,
+                        selected: nearbySortEnabled,
+                        label: label,
+                        onTap: isRequestingCurrentLocation
+                            ? null
+                            : () => onNearbySortChanged(!nearbySortEnabled),
+                        child: ExcludeSemantics(
+                          child: FilterChip(
+                            key: nearbySortFilterKey,
+                            avatar: const Icon(Icons.near_me, size: 18),
+                            label: const Text('가까운 순'),
+                            selected: nearbySortEnabled,
+                            onSelected: isRequestingCurrentLocation
+                                ? null
+                                : onNearbySortChanged,
+                          ),
+                        ),
+                      );
+                    }
+
+                    final style = index == 3
+                        ? null
+                        : availableStyles[index - 4];
+                    final label = style?.displayLabel ?? '전체';
+                    final isSelected = style == null
+                        ? allStoresSelected
+                        : style == selectedBurgerStyle;
+                    void select(bool selected) {
+                      if (style == null) {
+                        onAllStoresChanged(selected);
+                      } else {
+                        onBurgerStyleSelected(selected ? style : null);
+                      }
+                    }
+
+                    return Semantics(
+                      button: true,
+                      selected: isSelected,
+                      label: style == null ? '공개 매장 전체 보기' : '버거 스타일 $label 필터',
+                      onTap: () => select(!isSelected),
+                      child: ExcludeSemantics(
+                        child: ChoiceChip(
+                          key: style == null
+                              ? burgerStyleAllFilterKey
+                              : burgerStyleFilterKey(style),
+                          label: Text(label),
+                          selected: isSelected,
+                          onSelected: select,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
-        if (hasActiveCriteria) ...[
+        if (locationNotice != null)
+          Semantics(liveRegion: true, child: Text(locationNotice!)),
+        if (selectedRegion != null && unknownRegionCount > 0)
+          Semantics(
+            liveRegion: true,
+            child: Text('지역 미확정 $unknownRegionCount곳은 전체에서 확인할 수 있습니다.'),
+          ),
+        if (showResults && hasActiveCriteria) ...[
           const SizedBox(height: 8),
           Material(
             key: storeSearchResultsKey,
@@ -1283,7 +1956,7 @@ class MissingApiKeyView extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final visibleStores = stores ?? itaewonStoreLocations;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1300,24 +1973,24 @@ class MissingApiKeyView extends StatelessWidget {
             '지도 화면이 표시됩니다. 현재는 이태원 검수 매장 데이터만 확인합니다.',
           ),
           const SizedBox(height: 24),
-          Expanded(
-            child: ListView.separated(
-              itemCount: visibleStores.length,
-              separatorBuilder: (context, index) => const Divider(),
-              itemBuilder: (context, index) {
-                final store = visibleStores[index];
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: visibleStores.length,
+            separatorBuilder: (context, index) => const Divider(),
+            itemBuilder: (context, index) {
+              final store = visibleStores[index];
 
-                return ListTile(
-                  leading: const Icon(Icons.lunch_dining_outlined),
-                  title: Text(store.name),
-                  subtitle: Text(
-                    '${store.address}\n'
-                    '${BurgerStyle.parse(store.burgerStyle).displayLabel}',
-                  ),
-                  isThreeLine: true,
-                );
-              },
-            ),
+              return ListTile(
+                leading: const Icon(Icons.lunch_dining_outlined),
+                title: Text(store.name),
+                subtitle: Text(
+                  '${store.address}\n'
+                  '${BurgerStyle.parse(store.burgerStyle).displayLabel}',
+                ),
+                isThreeLine: true,
+              );
+            },
           ),
         ],
       ),
@@ -1372,7 +2045,9 @@ class MissingSupabaseConfigView extends StatelessWidget {
 }
 
 class StoreDataEmptyView extends StatelessWidget {
-  const StoreDataEmptyView({super.key});
+  const StoreDataEmptyView({super.key, required this.onRefresh});
+
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -1396,6 +2071,35 @@ class StoreDataEmptyView extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              key: storeDataRefreshButtonKey,
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh),
+              label: const Text('새로고침'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class StoreDataRefreshingView extends StatelessWidget {
+  const StoreDataRefreshingView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      key: storeDataRefreshingViewKey,
+      child: _LiveRegionMessage(
+        message: '공개 매장 정보를 새로 확인하고 있습니다.',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('공개 매장 정보를 새로 확인하고 있습니다.'),
           ],
         ),
       ),
@@ -1503,7 +2207,7 @@ class _CameraStatusCard extends StatelessWidget {
               children: [
                 const Icon(Icons.videocam_outlined),
                 const SizedBox(width: 10),
-                Text(status),
+                Expanded(child: Text(status)),
               ],
             ),
             if (kDebugMode) ...[

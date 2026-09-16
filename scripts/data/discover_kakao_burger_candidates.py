@@ -109,6 +109,7 @@ class SearchConfig:
     longitude: float
     latitude: float
     radius_meters: int
+    district_name: str = "용산구"
 
     @property
     def maximum_calls(self) -> int:
@@ -123,7 +124,7 @@ class SearchConfig:
 class DiscoveryStats:
     api_calls: int = 0
     raw_results_by_query: Counter[str] = field(default_factory=Counter)
-    yongsan_results_by_query: Counter[str] = field(default_factory=Counter)
+    district_results_by_query: Counter[str] = field(default_factory=Counter)
     excluded_by_rule: Counter[str] = field(default_factory=Counter)
     invalid_documents: int = 0
     deduplicated_places: int = 0
@@ -131,12 +132,14 @@ class DiscoveryStats:
     screening_status_counts: Counter[str] = field(default_factory=Counter)
     conflict_with_reviewed: int = 0
 
-    def as_dict(self, output_path: Path) -> dict[str, object]:
+    def as_dict(
+        self, output_path: Path, district_name: str = "용산구"
+    ) -> dict[str, object]:
         return {
             "실제 API 호출 횟수": self.api_calls,
             "검색어별 원시 결과 개수": dict(self.raw_results_by_query),
-            "검색어별 용산구 필터 통과 개수": dict(
-                self.yongsan_results_by_query
+            f"검색어별 {district_name} 필터 통과 개수": dict(
+                self.district_results_by_query
             ),
             "제외 규칙별 개수": dict(sorted(self.excluded_by_rule.items())),
             "필수 필드 또는 좌표 오류 수": self.invalid_documents,
@@ -299,6 +302,7 @@ def load_search_config(path: Path) -> SearchConfig:
         longitude = float(center["longitude"])
         latitude = float(center["latitude"])
         radius_meters = int(center["radiusMeters"])
+        district_name = str(data.get("districtName", "용산구")).strip()
     except (KeyError, TypeError, ValueError):
         raise DiscoveryError("검색어 설정의 queries 또는 center 형식이 잘못됐습니다.") from None
 
@@ -308,7 +312,9 @@ def load_search_config(path: Path) -> SearchConfig:
         raise DiscoveryError("검색 중심 좌표가 유효하지 않습니다.")
     if not 0 <= radius_meters <= 20000:
         raise DiscoveryError("검색 반경은 카카오 공식 제한인 0~20000m여야 합니다.")
-    return SearchConfig(queries, longitude, latitude, radius_meters)
+    if not district_name:
+        raise DiscoveryError("검색 대상 구가 비어 있습니다.")
+    return SearchConfig(queries, longitude, latitude, radius_meters, district_name)
 
 
 def read_kakao_api_key(env_path: Path, environ: Mapping[str, str] | None = None) -> str:
@@ -341,6 +347,12 @@ def read_kakao_api_key(env_path: Path, environ: Mapping[str, str] | None = None)
 def is_yongsan_address(address: str) -> bool:
     normalized = normalize_for_comparison(address).replace("특별시", "")
     return normalized.startswith("서울 용산구 ") or normalized == "서울 용산구"
+
+
+def is_district_address(address: str, district_name: str) -> bool:
+    normalized = normalize_for_comparison(address).replace("특별시", "")
+    district = normalize_for_comparison(district_name)
+    return normalized.startswith(f"서울 {district} ") or normalized == f"서울 {district}"
 
 
 def is_burger_related(category: str, queries: Sequence[str]) -> bool:
@@ -532,9 +544,11 @@ def collect_places(
             if not place_id or not name or not address or latitude is None or longitude is None:
                 stats.invalid_documents += 1
                 continue
-            if not is_yongsan_address(address) and not is_yongsan_address(parcel_address):
+            if not is_district_address(address, config.district_name) and not is_district_address(
+                parcel_address, config.district_name
+            ):
                 continue
-            stats.yongsan_results_by_query[query] += 1
+            stats.district_results_by_query[query] += 1
             if not is_burger_related(category, (query,)):
                 continue
 
@@ -711,7 +725,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=args.output,
             overwrite=args.overwrite,
         )
-        print(json.dumps(stats.as_dict(args.output), ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                stats.as_dict(args.output, config.district_name),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     except DiscoveryError as error:
         print(f"오류: {error}", file=sys.stderr)

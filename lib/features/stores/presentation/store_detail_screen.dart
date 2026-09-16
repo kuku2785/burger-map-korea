@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -20,12 +21,26 @@ class StoreDetailScreen extends StatefulWidget {
     this.externalUriLauncher = const UrlLauncherExternalUriLauncher(),
     this.isFavorite = false,
     this.onFavoriteChanged,
+    this.favoriteState,
+    this.isFavoriteProvider,
+    this.canChangeFavoriteProvider,
+    this.publicStoreIds,
+    this.publicStoreState,
+    this.storeProvider,
+    this.unavailableMessageProvider,
   });
 
   final StoreLocation store;
   final ExternalUriLauncher externalUriLauncher;
   final bool isFavorite;
   final StoreFavoriteChanged? onFavoriteChanged;
+  final Listenable? favoriteState;
+  final bool Function()? isFavoriteProvider;
+  final bool Function()? canChangeFavoriteProvider;
+  final ValueListenable<Set<String>>? publicStoreIds;
+  final Listenable? publicStoreState;
+  final StoreLocation? Function()? storeProvider;
+  final String Function()? unavailableMessageProvider;
 
   @override
   State<StoreDetailScreen> createState() => _StoreDetailScreenState();
@@ -35,11 +50,20 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
   bool _isOpeningDirections = false;
   bool _isUpdatingFavorite = false;
   late bool _isFavorite;
+  late bool _isStoreAvailable;
+  late StoreLocation _store;
+  late String _unavailableMessage;
 
   @override
   void initState() {
     super.initState();
-    _isFavorite = widget.isFavorite;
+    _isFavorite = widget.isFavoriteProvider?.call() ?? widget.isFavorite;
+    _store = widget.storeProvider?.call() ?? widget.store;
+    _isStoreAvailable = _readStoreAvailability();
+    _unavailableMessage = _readUnavailableMessage();
+    widget.favoriteState?.addListener(_handleFavoriteStateChanged);
+    widget.publicStoreIds?.addListener(_handleStoreAvailabilityChanged);
+    widget.publicStoreState?.addListener(_handleStoreAvailabilityChanged);
   }
 
   @override
@@ -48,11 +72,72 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
     if (oldWidget.isFavorite != widget.isFavorite) {
       _isFavorite = widget.isFavorite;
     }
+    if (oldWidget.favoriteState != widget.favoriteState) {
+      oldWidget.favoriteState?.removeListener(_handleFavoriteStateChanged);
+      widget.favoriteState?.addListener(_handleFavoriteStateChanged);
+    }
+    if (oldWidget.publicStoreIds != widget.publicStoreIds) {
+      oldWidget.publicStoreIds?.removeListener(_handleStoreAvailabilityChanged);
+      widget.publicStoreIds?.addListener(_handleStoreAvailabilityChanged);
+    }
+    if (oldWidget.publicStoreState != widget.publicStoreState) {
+      oldWidget.publicStoreState?.removeListener(
+        _handleStoreAvailabilityChanged,
+      );
+      widget.publicStoreState?.addListener(_handleStoreAvailabilityChanged);
+    }
+    _isFavorite = widget.isFavoriteProvider?.call() ?? _isFavorite;
+    _store = widget.storeProvider?.call() ?? widget.store;
+    _isStoreAvailable = _readStoreAvailability();
+    _unavailableMessage = _readUnavailableMessage();
+  }
+
+  @override
+  void dispose() {
+    widget.favoriteState?.removeListener(_handleFavoriteStateChanged);
+    widget.publicStoreIds?.removeListener(_handleStoreAvailabilityChanged);
+    widget.publicStoreState?.removeListener(_handleStoreAvailabilityChanged);
+    super.dispose();
+  }
+
+  void _handleFavoriteStateChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isFavorite = widget.isFavoriteProvider?.call() ?? _isFavorite;
+    });
+  }
+
+  bool _readStoreAvailability() {
+    final storeProvider = widget.storeProvider;
+    if (storeProvider != null) {
+      return storeProvider() != null;
+    }
+    final publicStoreIds = widget.publicStoreIds;
+    return publicStoreIds == null ||
+        publicStoreIds.value.contains(widget.store.id);
+  }
+
+  void _handleStoreAvailabilityChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _store = widget.storeProvider?.call() ?? _store;
+      _isStoreAvailable = _readStoreAvailability();
+      _unavailableMessage = _readUnavailableMessage();
+    });
+  }
+
+  String _readUnavailableMessage() {
+    return widget.unavailableMessageProvider?.call() ??
+        '이 매장은 더 이상 공개 목록에서 제공되지 않습니다.';
   }
 
   @override
   Widget build(BuildContext context) {
-    final store = widget.store;
+    final store = _store;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -65,7 +150,11 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
         actions: [
           IconButton(
             key: storeFavoriteButtonKey,
-            onPressed: _isUpdatingFavorite || widget.onFavoriteChanged == null
+            onPressed:
+                _isUpdatingFavorite ||
+                    widget.onFavoriteChanged == null ||
+                    !_isStoreAvailable ||
+                    !(widget.canChangeFavoriteProvider?.call() ?? true)
                 ? null
                 : _toggleFavorite,
             tooltip: _isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
@@ -73,68 +162,77 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                store.name,
-                style: Theme.of(context).textTheme.headlineSmall,
+      body: !_isStoreAvailable
+          ? SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(_unavailableMessage),
+                ),
               ),
-              const SizedBox(height: 12),
-              _VerificationBadge(status: store.verificationStatus),
-              const SizedBox(height: 32),
-              _StoreDetailSection(
-                icon: Icons.location_on_outlined,
-                label: '주소',
-                value: store.address.trim().isEmpty
-                    ? '주소 정보가 없습니다.'
-                    : store.address,
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  Tooltip(
-                    message: '길찾기',
-                    child: FilledButton.icon(
-                      key: storeDirectionsButtonKey,
-                      onPressed: _isOpeningDirections
-                          ? null
-                          : () => _openDirections(context),
-                      icon: const Icon(Icons.directions_outlined),
-                      label: const Text('길찾기'),
+            )
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      store.name,
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                  ),
-                  Tooltip(
-                    message: '주소 복사',
-                    child: OutlinedButton.icon(
-                      key: storeAddressCopyButtonKey,
-                      onPressed: () => _copyAddress(context),
-                      icon: const Icon(Icons.copy_outlined),
-                      label: const Text('주소 복사'),
+                    const SizedBox(height: 12),
+                    _VerificationBadge(status: store.verificationStatus),
+                    const SizedBox(height: 32),
+                    _StoreDetailSection(
+                      icon: Icons.location_on_outlined,
+                      label: '주소',
+                      value: store.address.trim().isEmpty
+                          ? '주소 정보가 없습니다.'
+                          : store.address,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        Tooltip(
+                          message: '길찾기',
+                          child: FilledButton.icon(
+                            key: storeDirectionsButtonKey,
+                            onPressed: _isOpeningDirections
+                                ? null
+                                : () => _openDirections(context),
+                            icon: const Icon(Icons.directions_outlined),
+                            label: const Text('길찾기'),
+                          ),
+                        ),
+                        Tooltip(
+                          message: '주소 복사',
+                          child: OutlinedButton.icon(
+                            key: storeAddressCopyButtonKey,
+                            onPressed: () => _copyAddress(context),
+                            icon: const Icon(Icons.copy_outlined),
+                            label: const Text('주소 복사'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    _StoreDetailSection(
+                      icon: Icons.lunch_dining_outlined,
+                      label: '버거 스타일',
+                      value: storeBurgerStyleLabel(store.burgerStyle),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 32),
-              _StoreDetailSection(
-                icon: Icons.lunch_dining_outlined,
-                label: '버거 스타일',
-                value: storeBurgerStyleLabel(store.burgerStyle),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
   Future<void> _copyAddress(BuildContext context) async {
-    final address = widget.store.address.trim();
+    final address = _store.address.trim();
     if (address.isEmpty) {
       _showMessage(context, '복사할 주소가 없습니다.');
       return;
@@ -163,7 +261,7 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
         return;
       }
       setState(() {
-        _isFavorite = nextValue;
+        _isFavorite = widget.isFavoriteProvider?.call() ?? nextValue;
       });
       _showMessage(context, nextValue ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 해제했습니다.');
     } on Object {
@@ -190,10 +288,10 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
 
     try {
       final uri = buildGoogleMapsDirectionsUri(
-        name: widget.store.name,
-        address: widget.store.address,
-        latitude: widget.store.latitude,
-        longitude: widget.store.longitude,
+        name: _store.name,
+        address: _store.address,
+        latitude: _store.latitude,
+        longitude: _store.longitude,
       );
       final launched = await widget.externalUriLauncher.launch(uri);
       if (!launched && context.mounted) {

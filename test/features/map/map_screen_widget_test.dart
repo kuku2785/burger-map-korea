@@ -7,6 +7,7 @@ import 'package:burger_map_korea/features/favorites/domain/favorite_store_ids_st
 import 'package:burger_map_korea/features/location/domain/current_location_service.dart';
 import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
+import 'package:burger_map_korea/features/stores/application/public_store_controller.dart';
 import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
 import 'package:burger_map_korea/features/stores/data/itaewon_store_locations.dart';
 import 'package:burger_map_korea/features/stores/domain/burger_style.dart';
@@ -91,6 +92,32 @@ void main() {
       verificationStatus: 'verified',
     ),
   ];
+  final nearbySortStores = <StoreLocation>[
+    StoreLocation(
+      id: 'far-chicken',
+      name: 'Far Chicken Burger',
+      address: 'Seoul Far-ro 1',
+      latitude: 37.56,
+      longitude: 127.02,
+      burgerStyle: 'chicken',
+    ),
+    StoreLocation(
+      id: 'near-chicken',
+      name: 'Near Chicken Burger',
+      address: 'Seoul Near-ro 2',
+      latitude: 37.531,
+      longitude: 126.991,
+      burgerStyle: 'chicken',
+    ),
+    StoreLocation(
+      id: 'near-classic',
+      name: 'Near Classic Burger',
+      address: 'Seoul Near-ro 3',
+      latitude: 37.532,
+      longitude: 126.992,
+      burgerStyle: 'classic',
+    ),
+  ];
 
   Widget testApp(Widget child) {
     return MaterialApp(
@@ -112,6 +139,12 @@ void main() {
     ValueChanged<ClusterManager>? onClusterManagerReady,
     ExternalUriLauncher? externalUriLauncher,
     FavoriteStoreIdsStore? favoriteStoreIdsStore,
+    Duration storeLoadTimeout = const Duration(seconds: 10),
+    Duration storeRefreshInterval = const Duration(minutes: 5),
+    PublicStoreClock? storeClock,
+    PublicStoreRefreshScheduler? storeRefreshScheduler,
+    CurrentLocationClock? currentLocationClock,
+    Duration maximumCurrentLocationAge = const Duration(minutes: 2),
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -136,6 +169,12 @@ void main() {
           externalUriLauncher: externalUriLauncher,
           favoriteStoreIdsStore:
               favoriteStoreIdsStore ?? _MemoryFavoriteStoreIdsStore(),
+          storeLoadTimeout: storeLoadTimeout,
+          storeRefreshInterval: storeRefreshInterval,
+          storeClock: storeClock,
+          storeRefreshScheduler: storeRefreshScheduler,
+          currentLocationClock: currentLocationClock,
+          maximumCurrentLocationAge: maximumCurrentLocationAge,
         ),
       ),
     );
@@ -149,6 +188,199 @@ void main() {
     expect(markers.map((marker) => marker.clusterManagerId).toSet(), {
       storeMarkerClusterManagerId,
     });
+  });
+
+  testWidgets('unready map controller does not block search list or details', (
+    tester,
+  ) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (_, _) => const SizedBox.expand(),
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+            find.descendant(
+              of: find.byKey(mapZoomInButtonKey),
+              matching: find.byType(IconButton),
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(storeSearchResultsKey),
+        matching: find.text('Alpha Burger'),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(StorePreviewCard), findsOneWidget);
+    await tester.tap(find.byKey(explorerListTabKey));
+    await tester.pump();
+    await tester.tap(find.text('Alpha Burger'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StoreDetailScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'stalled zoom unlocks and late completion cannot unlock a retry',
+    (tester) async {
+      final first = Completer<void>();
+      final second = Completer<void>();
+      var calls = 0;
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (_, _) => const SizedBox.expand(),
+        mapZoomMover: (_) => ++calls == 1 ? first.future : second.future,
+      );
+      final zoom = find.byKey(mapZoomInButtonKey);
+      final zoomButton = find.descendant(
+        of: zoom,
+        matching: find.byType(IconButton),
+      );
+      await tester.tap(zoom);
+      await tester.pump();
+      expect(tester.widget<IconButton>(zoomButton).onPressed, isNull);
+      await tester.pump(const Duration(seconds: 10));
+      expect(tester.widget<IconButton>(zoomButton).onPressed, isNotNull);
+      await tester.tap(zoom);
+      await tester.pump();
+      expect(calls, 2);
+      first.completeError(StateError('late camera failure'));
+      await tester.pump();
+      expect(tester.widget<IconButton>(zoomButton).onPressed, isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      second.complete();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'background interrupts camera wait while inactive alone does not',
+    (tester) async {
+      final pending = Completer<void>();
+      var calls = 0;
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (_, _) => const SizedBox.expand(),
+        mapZoomMover: (_) {
+          calls++;
+          return calls == 1 ? pending.future : Future<void>.value();
+        },
+      );
+      final zoom = find.byKey(mapZoomInButtonKey);
+      final zoomButton = find.descendant(
+        of: zoom,
+        matching: find.byType(IconButton),
+      );
+      await tester.tap(zoom);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(tester.widget<IconButton>(zoomButton).onPressed, isNull);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+      expect(tester.widget<IconButton>(zoomButton).onPressed, isNotNull);
+      await tester.tap(zoom);
+      await tester.pump();
+      expect(calls, 2);
+      pending.completeError(StateError('previous background camera'));
+      await tester.pump();
+      expect(tester.widget<IconButton>(zoomButton).onPressed, isNotNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'stalled cluster movement releases its lock and disposes safely',
+    (tester) async {
+      late ClusterManager manager;
+      final first = Completer<void>();
+      final second = Completer<void>();
+      var calls = 0;
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (_, _) => const SizedBox.expand(),
+        onClusterManagerReady: (value) => manager = value,
+        clusterCameraMover: (_, _) =>
+            ++calls == 1 ? first.future : second.future,
+      );
+      final cluster = Cluster(
+        storeMarkerClusterManagerId,
+        const [MarkerId('alpha'), MarkerId('beta')],
+        position: const LatLng(37.53, 126.99),
+        bounds: LatLngBounds(
+          southwest: const LatLng(37.52, 126.98),
+          northeast: const LatLng(37.54, 127),
+        ),
+      );
+      manager.onClusterTap!(cluster);
+      await tester.pump();
+      manager.onClusterTap!(cluster);
+      expect(calls, 1);
+      await tester.pump(const Duration(seconds: 10));
+      manager.onClusterTap!(cluster);
+      await tester.pump();
+      expect(calls, 2);
+      first.completeError(StateError('late cluster failure'));
+      await tester.pump();
+      manager.onClusterTap!(cluster);
+      expect(calls, 2);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      second.completeError(StateError('disposed camera'));
+      manager.onClusterTap!(cluster);
+      await tester.pump();
+      expect(calls, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('pilot details remain available after public snapshot wiring', (
+    tester,
+  ) async {
+    Set<Marker> markers = {};
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          config: const AppConfig(
+            environment: AppEnvironment.development,
+            googleMapsApiKey: 'test-key',
+          ),
+          favoriteStoreIdsStore: _MemoryFavoriteStoreIdsStore(),
+          mapSurfaceBuilder: (next, _) {
+            markers = next;
+            return const ColoredBox(color: Colors.white);
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    markers.first.onTap!();
+    await tester.pump();
+    await tester.tap(find.byKey(storePreviewDetailsButtonKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(storeAddressCopyButtonKey), findsOneWidget);
+    expect(
+      tester.widget<IconButton>(find.byKey(storeFavoriteButtonKey)).onPressed,
+      isNotNull,
+    );
   });
 
   test('empty visible stores create no clustered markers', () {
@@ -366,6 +598,913 @@ void main() {
     },
   );
 
+  testWidgets('camera failure keeps a valid location usable for nearby sort', (
+    tester,
+  ) async {
+    final service = _FakeCurrentLocationService(
+      checkedPermission: LocationPermissionStatus.whileInUse,
+    );
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (_, _) => const SizedBox.expand(),
+      currentLocationService: service,
+      currentLocationCameraMover: (_, _) async {
+        throw StateError('synthetic camera failure');
+      },
+    );
+    await tester.tap(find.byKey(currentLocationButtonKey));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('현재 위치로 지도를 이동하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isTrue,
+    );
+    expect(service.currentLocationCalls, 1);
+  });
+
+  testWidgets(
+    'camera timeout recovers and a late error after dispose is safe',
+    (tester) async {
+      final camera = Completer<void>();
+      await pumpSearchableMap(
+        tester,
+        loader: () async => searchableStores,
+        mapSurfaceBuilder: (_, _) => const SizedBox.expand(),
+        currentLocationService: _FakeCurrentLocationService(
+          checkedPermission: LocationPermissionStatus.whileInUse,
+        ),
+        currentLocationCameraMover: (_, _) => camera.future,
+      );
+      await tester.tap(find.byKey(currentLocationButtonKey));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pump();
+      expect(
+        find.text('현재 위치로 지도를 이동하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      camera.completeError(StateError('late camera error'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('shows the nearby sort control', (tester) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    expect(find.byKey(nearbySortFilterKey), findsOneWidget);
+    expect(find.text('가까운 순'), findsOneWidget);
+  });
+
+  testWidgets('foreground expiry clears nearby selection and location layer', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 9, 9);
+    final enabled = <bool>[];
+    final service = _FakeCurrentLocationService(
+      currentLocationHandler: () async =>
+          CurrentLocation(latitude: 37.53, longitude: 126.99, capturedAt: now),
+    );
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+      currentLocationService: service,
+      currentLocationClock: () => now,
+      onMyLocationEnabledChanged: enabled.add,
+    );
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isTrue,
+    );
+    now = now.add(const Duration(minutes: 2));
+    await tester.pump(const Duration(minutes: 2));
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isFalse,
+    );
+    expect(enabled, [true, false]);
+    expect(service.currentLocationCalls, 1);
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+    expect(service.currentLocationCalls, 2);
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isTrue,
+    );
+  });
+
+  testWidgets(
+    'late location after background cannot move camera or enable sorting',
+    (tester) async {
+      final old = Completer<CurrentLocation>();
+      var calls = 0;
+      var cameraCalls = 0;
+      final service = _FakeCurrentLocationService(
+        currentLocationHandler: () {
+          calls++;
+          return calls == 1
+              ? old.future
+              : Future.value(
+                  CurrentLocation(
+                    latitude: 37.53,
+                    longitude: 126.99,
+                    capturedAt: DateTime.now(),
+                  ),
+                );
+        },
+      );
+      await pumpSearchableMap(
+        tester,
+        loader: () async => nearbySortStores,
+        mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+        currentLocationService: service,
+        currentLocationCameraMover: (_, _) async {
+          cameraCalls++;
+        },
+      );
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      old.complete(
+        CurrentLocation(
+          latitude: 37.53,
+          longitude: 126.99,
+          capturedAt: DateTime.now(),
+        ),
+      );
+      await tester.pump();
+      expect(cameraCalls, 0);
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isFalse,
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(cameraCalls, 0);
+      expect(calls, 2);
+    },
+  );
+
+  testWidgets(
+    'approximate-only location enables current location and nearby order with lasting notice',
+    (tester) async {
+      var moves = 0;
+      final service = _FakeCurrentLocationService(
+        location: CurrentLocation(
+          latitude: 37.53,
+          longitude: 126.99,
+          capturedAt: DateTime.now(),
+          precision: CurrentLocationPrecision.approximate,
+          accuracyMeters: 500,
+        ),
+      );
+      await pumpSearchableMap(
+        tester,
+        loader: () async => nearbySortStores,
+        mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+        currentLocationService: service,
+        currentLocationCameraMover: (_, _) async {
+          moves++;
+        },
+      );
+      await tester.tap(find.byKey(currentLocationButtonKey));
+      await tester.pumpAndSettle();
+      expect(moves, 1);
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isTrue,
+      );
+      expect(_visibleSearchResultIds(tester).first, 'near-chicken');
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.textContaining('대략적인 위치 기준'), findsOneWidget);
+      expect(service.requestPermissionCalls, 0);
+    },
+  );
+
+  testWidgets('nearby sort requests a location and activates after success', (
+    tester,
+  ) async {
+    final locationService = _FakeCurrentLocationService(
+      location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+    );
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: locationService,
+    );
+
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+
+    expect(locationService.currentLocationCalls, 1);
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isTrue,
+    );
+  });
+
+  testWidgets('nearby sort stays inactive when location lookup fails', (
+    tester,
+  ) async {
+    final locationService = _FakeCurrentLocationService(
+      currentLocationError: StateError('synthetic location failure'),
+    );
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: locationService,
+    );
+
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isFalse,
+    );
+    expect(find.textContaining('현재 위치를 가져오지 못했습니다.'), findsOneWidget);
+  });
+
+  testWidgets('nearby sort replaces an expired in-memory location', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 9, 8, 12);
+    var locationCalls = 0;
+    final locationService = _FakeCurrentLocationService(
+      currentLocationHandler: () async {
+        locationCalls += 1;
+        return CurrentLocation(
+          latitude: 37.53 + locationCalls / 1000,
+          longitude: 126.99,
+          capturedAt: now,
+        );
+      },
+    );
+
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+      currentLocationService: locationService,
+      currentLocationCameraMover: (_, _) async {},
+      currentLocationClock: () => now,
+    );
+
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pump();
+    now = now.add(const Duration(minutes: 3));
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+
+    expect(locationService.currentLocationCalls, 2);
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isTrue,
+    );
+  });
+
+  testWidgets('background resume refreshes an expired nearby location', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 9, 8, 12);
+    final locationService = _FakeCurrentLocationService(
+      currentLocationHandler: () async =>
+          CurrentLocation(latitude: 37.53, longitude: 126.99, capturedAt: now),
+    );
+
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+      currentLocationService: locationService,
+      currentLocationCameraMover: (_, _) async {},
+      currentLocationClock: () => now,
+    );
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    now = now.add(const Duration(minutes: 3));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(locationService.currentLocationCalls, 2);
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isTrue,
+    );
+  });
+
+  testWidgets(
+    'resume clears nearby sort after location permission is revoked',
+    (tester) async {
+      var permissionChecks = 0;
+      final enabledChanges = <bool>[];
+      final locationService = _FakeCurrentLocationService(
+        checkPermissionHandler: () async {
+          permissionChecks += 1;
+          return permissionChecks == 1
+              ? LocationPermissionStatus.whileInUse
+              : LocationPermissionStatus.denied;
+        },
+      );
+
+      await pumpSearchableMap(
+        tester,
+        loader: () async => nearbySortStores,
+        mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+        currentLocationService: locationService,
+        currentLocationCameraMover: (_, _) async {},
+        onMyLocationEnabledChanged: enabledChanges.add,
+      );
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pumpAndSettle();
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(permissionChecks, 1);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(permissionChecks, 2);
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isFalse,
+      );
+      expect(enabledChanges, <bool>[true, false]);
+    },
+  );
+
+  testWidgets('approximate location shows a non-precise sorting notice', (
+    tester,
+  ) async {
+    final locationService = _FakeCurrentLocationService(
+      location: CurrentLocation(
+        latitude: 37.53,
+        longitude: 126.99,
+        capturedAt: DateTime.now(),
+        accuracyMeters: 500,
+        precision: CurrentLocationPrecision.approximate,
+      ),
+    );
+
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+      currentLocationService: locationService,
+      currentLocationCameraMover: (_, _) async {},
+    );
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pump();
+
+    expect(find.textContaining('대략적인 위치 기준'), findsOneWidget);
+  });
+
+  testWidgets('nearby sort orders results and off restores original order', (
+    tester,
+  ) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: _FakeCurrentLocationService(
+        location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      ),
+    );
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'Burger');
+    await tester.pump();
+    expect(_visibleSearchResultIds(tester), [
+      'far-chicken',
+      'near-chicken',
+      'near-classic',
+    ]);
+
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+    expect(_visibleSearchResultIds(tester), [
+      'near-chicken',
+      'near-classic',
+      'far-chicken',
+    ]);
+
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pump();
+    expect(_visibleSearchResultIds(tester), [
+      'far-chicken',
+      'near-chicken',
+      'near-classic',
+    ]);
+  });
+
+  testWidgets('combines text search with nearby sort', (tester) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: _FakeCurrentLocationService(
+        location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      ),
+    );
+
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'Chicken');
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+
+    expect(_visibleSearchResultIds(tester), ['near-chicken', 'far-chicken']);
+  });
+
+  testWidgets('combines burger style filter with nearby sort', (tester) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: _FakeCurrentLocationService(
+        location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      ),
+    );
+
+    await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)));
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+
+    expect(_visibleSearchResultIds(tester), ['near-chicken', 'far-chicken']);
+  });
+
+  testWidgets('combines favorites only with nearby sort', (tester) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: _FakeCurrentLocationService(
+        location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      ),
+      favoriteStoreIdsStore: _MemoryFavoriteStoreIdsStore({
+        'far-chicken',
+        'near-chicken',
+      }),
+    );
+
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+
+    expect(_visibleSearchResultIds(tester), ['near-chicken', 'far-chicken']);
+  });
+
+  testWidgets('favorites retap turns the filter off and preserves search', (
+    tester,
+  ) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => searchableStores,
+      mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+      favoriteStoreIdsStore: _MemoryFavoriteStoreIdsStore({'alpha'}),
+    );
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'Burger');
+    await tester.pump();
+
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.pump();
+    expect(_visibleSearchResultIds(tester), ['alpha']);
+
+    await tester.tap(find.byKey(favoritesOnlyFilterKey));
+    await tester.pump();
+
+    expect(
+      tester.widget<FilterChip>(find.byKey(favoritesOnlyFilterKey)).selected,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(storeSearchFieldKey))
+          .controller
+          ?.text,
+      'Burger',
+    );
+    expect(_visibleSearchResultIds(tester), ['alpha', 'beta']);
+  });
+
+  testWidgets(
+    'nearby retap turns sorting off without another location lookup',
+    (tester) async {
+      final locationService = _FakeCurrentLocationService(
+        location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      );
+      await pumpSearchableMap(
+        tester,
+        loader: () async => nearbySortStores,
+        mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+        currentLocationService: locationService,
+      );
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'Chicken');
+      await tester.ensureVisible(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+      );
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)));
+      await tester.pump();
+
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pumpAndSettle();
+      expect(_visibleSearchResultIds(tester), ['near-chicken', 'far-chicken']);
+      expect(locationService.currentLocationCalls, 1);
+
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pump();
+
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isFalse,
+      );
+      expect(locationService.currentLocationCalls, 1);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(storeSearchFieldKey))
+            .controller
+            ?.text,
+        'Chicken',
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+            )
+            .selected,
+        isTrue,
+      );
+      expect(_visibleSearchResultIds(tester), ['far-chicken', 'near-chicken']);
+    },
+  );
+
+  testWidgets(
+    'style retap clears only style and leaves every style chip unselected',
+    (tester) async {
+      await pumpSearchableMap(
+        tester,
+        loader: () async => nearbySortStores,
+        mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+        favoriteStoreIdsStore: _MemoryFavoriteStoreIdsStore({
+          'far-chicken',
+          'near-classic',
+        }),
+      );
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'Burger');
+      await tester.tap(find.byKey(favoritesOnlyFilterKey));
+      await tester.ensureVisible(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+      );
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)));
+      await tester.pump();
+      expect(_visibleSearchResultIds(tester), ['far-chicken']);
+
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)));
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+            )
+            .selected,
+        isFalse,
+      );
+      expect(
+        tester.widget<ChoiceChip>(find.byKey(burgerStyleAllFilterKey)).selected,
+        isFalse,
+      );
+      expect(_visibleSearchResultIds(tester), ['far-chicken', 'near-classic']);
+      expect(
+        tester.widget<FilterChip>(find.byKey(favoritesOnlyFilterKey)).selected,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(storeSearchFieldKey))
+            .controller
+            ?.text,
+        'Burger',
+      );
+      expect(_visibleSearchResultIds(tester), ['far-chicken', 'near-classic']);
+    },
+  );
+
+  testWidgets(
+    'All clears every criterion, shows all stores, and retap closes results',
+    (tester) async {
+      Set<String> markerIds = <String>{};
+      final locationService = _FakeCurrentLocationService(
+        location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      );
+      await pumpSearchableMap(
+        tester,
+        loader: () async => nearbySortStores,
+        mapSurfaceBuilder: (markers, _) {
+          markerIds = markers.map((marker) => marker.markerId.value).toSet();
+          return const ColoredBox(color: Colors.white);
+        },
+        currentLocationService: locationService,
+        favoriteStoreIdsStore: _MemoryFavoriteStoreIdsStore({'far-chicken'}),
+      );
+
+      final allChip = find.byKey(burgerStyleAllFilterKey);
+      expect(tester.widget<ChoiceChip>(allChip).selected, isFalse);
+      expect(find.byKey(storeSearchResultsKey), findsNothing);
+      expect(markerIds, {'far-chicken', 'near-chicken', 'near-classic'});
+
+      await tester.tap(allChip);
+      await tester.pump();
+      expect(tester.widget<ChoiceChip>(allChip).selected, isTrue);
+      expect(_visibleSearchResultIds(tester), [
+        'far-chicken',
+        'near-chicken',
+        'near-classic',
+      ]);
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'Chicken');
+      await tester.pump();
+      expect(tester.widget<ChoiceChip>(allChip).selected, isFalse);
+
+      await tester.tap(allChip);
+      await tester.pump();
+      expect(tester.widget<ChoiceChip>(allChip).selected, isTrue);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(storeSearchFieldKey))
+            .controller
+            ?.text,
+        isEmpty,
+      );
+
+      await tester.tap(find.byKey(favoritesOnlyFilterKey));
+      await tester.pump();
+      expect(tester.widget<ChoiceChip>(allChip).selected, isFalse);
+
+      await tester.tap(allChip);
+      await tester.pump();
+      expect(tester.widget<ChoiceChip>(allChip).selected, isTrue);
+      expect(
+        tester.widget<FilterChip>(find.byKey(favoritesOnlyFilterKey)).selected,
+        isFalse,
+      );
+
+      await tester.ensureVisible(
+        find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+      );
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)));
+      await tester.pump();
+      expect(tester.widget<ChoiceChip>(allChip).selected, isFalse);
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'Chicken');
+      await tester.tap(find.byKey(favoritesOnlyFilterKey));
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pumpAndSettle();
+      expect(locationService.currentLocationCalls, 1);
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isTrue,
+      );
+
+      await tester.ensureVisible(allChip);
+      await tester.tap(allChip);
+      await tester.pump();
+
+      expect(tester.widget<ChoiceChip>(allChip).selected, isTrue);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(storeSearchFieldKey))
+            .controller
+            ?.text,
+        isEmpty,
+      );
+      expect(
+        tester.widget<FilterChip>(find.byKey(favoritesOnlyFilterKey)).selected,
+        isFalse,
+      );
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(burgerStyleFilterKey(BurgerStyle.chicken)),
+            )
+            .selected,
+        isFalse,
+      );
+      expect(_visibleSearchResultIds(tester), [
+        'far-chicken',
+        'near-chicken',
+        'near-classic',
+      ]);
+      expect(markerIds, {'far-chicken', 'near-chicken', 'near-classic'});
+
+      await tester.tap(allChip);
+      await tester.pump();
+
+      expect(tester.widget<ChoiceChip>(allChip).selected, isFalse);
+      expect(find.byKey(storeSearchResultsKey), findsNothing);
+      expect(markerIds, {'far-chicken', 'near-chicken', 'near-classic'});
+    },
+  );
+
+  testWidgets(
+    'All prevents a pending nearby request from reselecting sorting',
+    (tester) async {
+      final pendingLocation = Completer<CurrentLocation>();
+      await pumpSearchableMap(
+        tester,
+        loader: () async => nearbySortStores,
+        mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+        currentLocationService: _FakeCurrentLocationService(
+          currentLocationHandler: () => pendingLocation.future,
+        ),
+      );
+
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pump();
+      await tester.tap(find.byKey(burgerStyleAllFilterKey));
+      await tester.pump();
+
+      pendingLocation.complete(
+        const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<ChoiceChip>(find.byKey(burgerStyleAllFilterKey)).selected,
+        isTrue,
+      );
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isFalse,
+      );
+      expect(_visibleSearchResultIds(tester), [
+        'far-chicken',
+        'near-chicken',
+        'near-classic',
+      ]);
+    },
+  );
+
+  testWidgets('current location button supplies location for nearby sort', (
+    tester,
+  ) async {
+    final locationService = _FakeCurrentLocationService(
+      location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+    );
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: locationService,
+      currentLocationCameraMover: (location, zoom) async {},
+    );
+
+    await tester.tap(find.byKey(currentLocationButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pump();
+
+    expect(locationService.currentLocationCalls, 1);
+    expect(
+      tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+      isTrue,
+    );
+  });
+
+  testWidgets('nearby sort does not change the marker set', (tester) async {
+    Set<Marker> visibleMarkers = const <Marker>{};
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        visibleMarkers = markers;
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: _FakeCurrentLocationService(
+        location: const CurrentLocation(latitude: 37.53, longitude: 126.99),
+      ),
+    );
+    final initialMarkerIds = visibleMarkers
+        .map((marker) => marker.markerId)
+        .toSet();
+    visibleMarkers
+        .firstWhere((marker) => marker.markerId.value == 'far-chicken')
+        .onTap
+        ?.call();
+    await tester.pump();
+    expect(
+      tester.widget<StorePreviewCard>(find.byType(StorePreviewCard)).store.id,
+      'far-chicken',
+    );
+
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pumpAndSettle();
+
+    expect(
+      visibleMarkers.map((marker) => marker.markerId).toSet(),
+      initialMarkerIds,
+    );
+    expect(visibleMarkers, hasLength(nearbySortStores.length));
+    expect(
+      tester.widget<StorePreviewCard>(find.byType(StorePreviewCard)).store.id,
+      'far-chicken',
+    );
+  });
+
+  testWidgets('nearby sort semantics expose location and selected states', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    final locationCompleter = Completer<CurrentLocation>();
+    await pumpSearchableMap(
+      tester,
+      loader: () async => nearbySortStores,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+      currentLocationService: _FakeCurrentLocationService(
+        currentLocationHandler: () => locationCompleter.future,
+      ),
+    );
+
+    final needsLocationFinder = find.bySemanticsLabel(
+      '가까운 순 정렬, 현재 위치가 필요합니다.',
+    );
+    expect(needsLocationFinder, findsOneWidget);
+    expect(
+      tester.getSemantics(needsLocationFinder).flagsCollection.isSelected,
+      Tristate.isFalse,
+    );
+
+    await tester.tap(find.byKey(nearbySortFilterKey));
+    await tester.pump();
+    expect(
+      find.bySemanticsLabel('가까운 순 정렬, 현재 위치를 확인하는 중입니다.'),
+      findsOneWidget,
+    );
+
+    locationCompleter.complete(
+      const CurrentLocation(latitude: 37.53, longitude: 126.99),
+    );
+    await tester.pumpAndSettle();
+    final activeFinder = find.bySemanticsLabel('가까운 순 정렬');
+    expect(activeFinder, findsOneWidget);
+    expect(
+      tester.getSemantics(activeFinder).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    semanticsHandle.dispose();
+  });
+
   testWidgets(
     'cluster tap fits bounds, closes preview, and ignores repeat taps',
     (tester) async {
@@ -425,6 +1564,11 @@ void main() {
 
       moveCompleter.complete();
       await tester.pump();
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+      await tester.pump();
+      clusterManager!.onClusterTap!.call(cluster);
+      await tester.pump();
+      expect(moveCalls, 1, reason: 'filtered-out cluster members are stale');
     },
   );
 
@@ -747,15 +1891,405 @@ void main() {
 
     expect(find.byType(StoreDataErrorView), findsOneWidget);
     expect(find.textContaining('private server response'), findsNothing);
-    expect(find.text('다시 시도'), findsOneWidget);
+    final storeRetry = find.descendant(
+      of: find.byType(StoreDataErrorView),
+      matching: find.text('다시 시도'),
+    );
+    expect(storeRetry, findsOneWidget);
 
-    await tester.tap(find.text('다시 시도'));
+    await tester.tap(storeRetry);
     await tester.pump();
     await tester.pump();
 
     expect(attempts, 2);
     expect(find.byType(StoreDataEmptyView), findsOneWidget);
   });
+
+  testWidgets(
+    'times out an unresponsive load and applies only the retry result',
+    (tester) async {
+      final firstLoad = Completer<List<StoreLocation>>();
+      final secondLoad = Completer<List<StoreLocation>>();
+      var attempts = 0;
+      Set<String> visibleMarkerIds = <String>{};
+
+      await pumpSearchableMap(
+        tester,
+        loader: () {
+          attempts += 1;
+          return attempts == 1 ? firstLoad.future : secondLoad.future;
+        },
+        storeLoadTimeout: const Duration(seconds: 1),
+        mapSurfaceBuilder: (markers, onMapTap) {
+          visibleMarkerIds = markers
+              .map((marker) => marker.markerId.value)
+              .toSet();
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(find.byType(StoreDataErrorView), findsOneWidget);
+
+      await tester.tap(find.text('다시 시도'));
+      await tester.pump();
+      expect(attempts, 2);
+
+      secondLoad.complete(<StoreLocation>[searchableStores.last]);
+      await tester.pump();
+      expect(visibleMarkerIds, <String>{searchableStores.last.id});
+
+      firstLoad.complete(<StoreLocation>[searchableStores.first]);
+      await tester.pump();
+      expect(visibleMarkerIds, <String>{searchableStores.last.id});
+    },
+  );
+
+  testWidgets('keeps a zero-store result distinct from an unresponsive error', (
+    tester,
+  ) async {
+    await pumpSearchableMap(
+      tester,
+      loader: () async => const <StoreLocation>[],
+      storeLoadTimeout: const Duration(seconds: 1),
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+    expect(find.byType(StoreDataEmptyView), findsOneWidget);
+    expect(find.byType(StoreDataErrorView), findsNothing);
+  });
+
+  testWidgets(
+    'duplicate retries and late failure cannot replace recovered data',
+    (tester) async {
+      final first = Completer<List<StoreLocation>>();
+      final second = Completer<List<StoreLocation>>();
+      var calls = 0;
+      Set<String> ids = {};
+      await pumpSearchableMap(
+        tester,
+        loader: () => ++calls == 1 ? first.future : second.future,
+        storeLoadTimeout: const Duration(seconds: 1),
+        mapSurfaceBuilder: (markers, _) {
+          ids = markers.map((marker) => marker.markerId.value).toSet();
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      final retry = tester
+          .widget<StoreDataErrorView>(find.byType(StoreDataErrorView))
+          .onRetry;
+      retry();
+      retry();
+      await tester.pump();
+      expect(calls, 2);
+      expect(find.byType(StoreDataLoadingView), findsOneWidget);
+      second.complete([searchableStores.last]);
+      await tester.pump();
+      first.completeError(StateError('late private failure'));
+      await tester.pump();
+      expect(ids, {searchableStores.last.id});
+      expect(find.byType(StoreDataErrorView), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      retry();
+      await tester.pump();
+      expect(calls, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('ignores a store load completion after the map is disposed', (
+    tester,
+  ) async {
+    final pendingLoad = Completer<List<StoreLocation>>();
+    await pumpSearchableMap(
+      tester,
+      loader: () => pendingLoad.future,
+      mapSurfaceBuilder: (markers, onMapTap) {
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    pendingLoad.complete(<StoreLocation>[searchableStores.first]);
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'ready refresh hides the old snapshot and shows the replacement',
+    (tester) async {
+      final replacement = Completer<List<StoreLocation>>();
+      var calls = 0;
+      Set<String> markerIds = <String>{};
+      await pumpSearchableMap(
+        tester,
+        loader: () {
+          calls += 1;
+          return calls == 1
+              ? Future.value(searchableStores)
+              : replacement.future;
+        },
+        mapSurfaceBuilder: (markers, _) {
+          markerIds = markers.map((marker) => marker.markerId.value).toSet();
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+
+      expect(find.byKey(storeDataRefreshButtonKey), findsOneWidget);
+      expect(markerIds, {'alpha', 'beta', 'gamma'});
+      await tester.tap(find.byKey(storeDataRefreshButtonKey));
+      await tester.pump();
+
+      expect(calls, 2);
+      expect(find.byType(StoreDataRefreshingView), findsOneWidget);
+      expect(find.byKey(storeSearchFieldKey), findsNothing);
+      expect(find.text('Alpha Burger'), findsNothing);
+
+      replacement.complete(<StoreLocation>[searchableStores.last]);
+      await tester.pump();
+      expect(find.byType(StoreDataRefreshingView), findsNothing);
+      expect(markerIds, {'gamma'});
+      expect(find.byKey(storeDataRefreshButtonKey), findsOneWidget);
+    },
+  );
+
+  testWidgets('zero-store refresh can recover to a public snapshot', (
+    tester,
+  ) async {
+    var calls = 0;
+    var mapCreations = 0;
+    Set<String> markerIds = <String>{};
+    await pumpSearchableMap(
+      tester,
+      loader: () async {
+        calls += 1;
+        return calls == 1
+            ? const <StoreLocation>[]
+            : <StoreLocation>[searchableStores.first];
+      },
+      mapSurfaceBuilder: (markers, _) {
+        mapCreations += 1;
+        markerIds = markers.map((marker) => marker.markerId.value).toSet();
+        return const ColoredBox(color: Colors.white);
+      },
+    );
+
+    expect(find.byType(StoreDataEmptyView), findsOneWidget);
+    expect(
+      mapCreations,
+      0,
+      reason: 'do not initialize a map at the pilot camera',
+    );
+    expect(find.text('새로고침'), findsOneWidget);
+    await tester.tap(find.byKey(storeDataRefreshButtonKey));
+    await tester.pump();
+    await tester.pump();
+
+    expect(calls, 2);
+    expect(find.byType(StoreDataEmptyView), findsNothing);
+    expect(markerIds, {'alpha'});
+    expect(mapCreations, 1);
+  });
+
+  testWidgets(
+    'refresh preserves search filters nearby sort favorites and camera',
+    (tester) async {
+      var calls = 0;
+      var zoomMoves = 0;
+      Set<String> markerIds = <String>{};
+      final favorites = _MemoryFavoriteStoreIdsStore({'alpha'});
+      final replacement = StoreLocation(
+        id: 'alpha',
+        name: 'Alpha Burger Refreshed',
+        address: 'Seoul Yongsan Alpha-ro 2',
+        latitude: 37.531,
+        longitude: 126.991,
+        burgerStyle: 'smash',
+        verificationStatus: 'verified',
+      );
+      await pumpSearchableMap(
+        tester,
+        loader: () async {
+          calls += 1;
+          return calls == 1 ? searchableStores : <StoreLocation>[replacement];
+        },
+        favoriteStoreIdsStore: favorites,
+        currentLocationService: _FakeCurrentLocationService(),
+        currentLocationCameraMover: (_, _) async {},
+        mapZoomMover: (_) async => zoomMoves += 1,
+        mapSurfaceBuilder: (markers, _) {
+          markerIds = markers.map((marker) => marker.markerId.value).toSet();
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+
+      await tester.enterText(find.byKey(storeSearchFieldKey), 'alpha');
+      await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
+      await tester.tap(find.byKey(favoritesOnlyFilterKey));
+      await tester.tap(find.byKey(nearbySortFilterKey));
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.byKey(mapZoomInButtonKey));
+      await tester.pump();
+      expect(markerIds, {'alpha'});
+      expect(zoomMoves, 1);
+
+      await tester.tap(find.byKey(storeDataRefreshButtonKey));
+      await tester.pump();
+      await tester.pump();
+
+      expect(calls, 2);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(storeSearchFieldKey))
+            .controller
+            ?.text,
+        'alpha',
+      );
+      expect(
+        tester.widget<FilterChip>(find.byKey(favoritesOnlyFilterKey)).selected,
+        isTrue,
+      );
+      expect(
+        tester.widget<FilterChip>(find.byKey(nearbySortFilterKey)).selected,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(burgerStyleFilterKey(BurgerStyle.smash)),
+            )
+            .selected,
+        isTrue,
+      );
+      expect(markerIds, {'alpha'});
+      expect(find.text(replacement.name), findsOneWidget);
+      expect(zoomMoves, 1);
+      expect(favorites.storeIds, {'alpha'});
+    },
+  );
+
+  testWidgets(
+    'failed refresh keeps stale stores hidden until a manual retry succeeds',
+    (tester) async {
+      var calls = 0;
+      Set<String> markerIds = <String>{};
+      await pumpSearchableMap(
+        tester,
+        loader: () async {
+          calls += 1;
+          if (calls == 1) {
+            return <StoreLocation>[searchableStores.first];
+          }
+          if (calls == 2) {
+            throw StateError('offline private detail');
+          }
+          return <StoreLocation>[searchableStores.last];
+        },
+        mapSurfaceBuilder: (markers, _) {
+          markerIds = markers.map((marker) => marker.markerId.value).toSet();
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+
+      await tester.tap(find.byKey(storeDataRefreshButtonKey));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(StoreDataErrorView), findsOneWidget);
+      expect(find.textContaining('offline private detail'), findsNothing);
+      expect(find.byKey(storeSearchFieldKey), findsNothing);
+
+      await tester.tap(find.text('다시 시도'));
+      await tester.pump();
+      await tester.pump();
+      expect(calls, 3);
+      expect(markerIds, {'gamma'});
+      expect(find.byType(StoreDataErrorView), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'background expiry hides an open detail and applies updated or removed data',
+    (tester) async {
+      var now = DateTime.utc(2026, 9, 7, 12);
+      final updatedLoad = Completer<List<StoreLocation>>();
+      final removedLoad = Completer<List<StoreLocation>>();
+      var calls = 0;
+      Set<Marker> markers = <Marker>{};
+      final original = searchableStores.first;
+      final updated = StoreLocation(
+        id: original.id,
+        name: 'Alpha Burger Updated',
+        address: 'Seoul Yongsan Updated-ro 9',
+        latitude: original.latitude,
+        longitude: original.longitude,
+        burgerStyle: original.burgerStyle,
+        verificationStatus: 'verified',
+      );
+      await pumpSearchableMap(
+        tester,
+        loader: () {
+          calls += 1;
+          return switch (calls) {
+            1 => Future.value(<StoreLocation>[original]),
+            2 => updatedLoad.future,
+            _ => removedLoad.future,
+          };
+        },
+        storeClock: () => now,
+        mapSurfaceBuilder: (nextMarkers, _) {
+          markers = nextMarkers;
+          return const ColoredBox(color: Colors.white);
+        },
+      );
+      markers.single.onTap?.call();
+      await tester.pump();
+      await tester.tap(find.byKey(storePreviewDetailsButtonKey));
+      await tester.pumpAndSettle();
+      expect(find.text(original.address), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(calls, 1);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      now = now.add(const Duration(minutes: 5));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(calls, 2);
+      expect(find.text(original.address), findsNothing);
+      expect(find.text('매장 정보를 새로 확인하고 있습니다.'), findsOneWidget);
+
+      updatedLoad.complete(<StoreLocation>[updated]);
+      await tester.pump();
+      expect(find.text(updated.name), findsOneWidget);
+      expect(find.text(updated.address), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      now = now.add(const Duration(minutes: 5));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(calls, 3);
+      expect(find.text(updated.address), findsNothing);
+
+      removedLoad.complete(const <StoreLocation>[]);
+      await tester.pump();
+      expect(find.text('이 매장은 더 이상 공개 목록에서 제공되지 않습니다.'), findsOneWidget);
+    },
+  );
 
   testWidgets('filters markers by name and restores all markers on clear', (
     tester,
@@ -1157,6 +2691,66 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('search filters fit at 320px width and 200% text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          );
+        },
+        home: MapScreen(
+          config: const AppConfig(
+            environment: AppEnvironment.development,
+            googleMapsApiKey: 'test-key',
+            storeDataMode: StoreDataMode.supabase,
+            supabaseUrl: 'https://unit.invalid',
+            supabasePublishableKey: 'publishable-test-value',
+          ),
+          supabaseStoreLoader: () async => searchableStores,
+          mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+          favoriteStoreIdsStore: _MemoryFavoriteStoreIdsStore(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final searchRect = tester.getRect(find.byKey(storeSearchFieldKey));
+    final favoritesRect = tester.getRect(find.byKey(favoritesOnlyFilterKey));
+    await tester.scrollUntilVisible(
+      find.byKey(burgerStyleAllFilterKey),
+      200,
+      scrollable: find.ancestor(
+        of: find.byKey(favoritesOnlyFilterKey),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pump();
+    final allFilter = tester.widget<ChoiceChip>(
+      find.byKey(burgerStyleAllFilterKey),
+    );
+
+    expect(searchRect.left, greaterThanOrEqualTo(0));
+    expect(searchRect.right, lessThanOrEqualTo(320));
+    expect(searchRect.height, greaterThanOrEqualTo(64));
+    expect(favoritesRect.top, greaterThanOrEqualTo(searchRect.bottom));
+    expect(favoritesRect.left, greaterThanOrEqualTo(0));
+    expect(favoritesRect.right, lessThanOrEqualTo(320));
+    expect(allFilter.selected, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('search is available in pilot and staging data modes', (
     tester,
   ) async {
@@ -1278,7 +2872,7 @@ void main() {
     final allChip = tester.widget<ChoiceChip>(
       find.byKey(burgerStyleAllFilterKey),
     );
-    expect(allChip.selected, isTrue);
+    expect(allChip.selected, isFalse);
     expect(
       find.byKey(burgerStyleFilterKey(BurgerStyle.classic)),
       findsOneWidget,
@@ -1341,19 +2935,6 @@ void main() {
           .selected,
       isTrue,
     );
-
-    await tester.enterText(find.byKey(storeSearchFieldKey), 'beta');
-    await tester.pump();
-    await tester.tap(find.byKey(burgerStyleAllFilterKey));
-    await tester.pump();
-    expect(
-      tester
-          .widget<TextField>(find.byKey(storeSearchFieldKey))
-          .controller
-          ?.text,
-      'beta',
-    );
-    expect(markerCount, 1);
   });
 
   testWidgets('style filter closes a selected card that no longer matches', (
@@ -1412,16 +2993,23 @@ void main() {
     expect(favoritesNode.flagsCollection.isSelected, isNot(Tristate.none));
     expect(favoritesNode.flagsCollection.isSelected, Tristate.isFalse);
 
-    final allFilterFinder = find.bySemanticsLabel('버거 스타일 전체 필터');
+    final allFilterFinder = find.bySemanticsLabel('공개 매장 전체 보기');
     expect(allFilterFinder, findsOne);
     var allFilterNode = tester.getSemantics(allFilterFinder);
     expect(allFilterNode.flagsCollection.isButton, isTrue);
+    expect(allFilterNode.flagsCollection.isSelected, Tristate.isFalse);
+
+    await tester.tap(find.byKey(burgerStyleAllFilterKey));
+    await tester.pump();
+    allFilterNode = tester.getSemantics(allFilterFinder);
     expect(allFilterNode.flagsCollection.isSelected, Tristate.isTrue);
 
     await tester.tap(find.byKey(favoritesOnlyFilterKey));
     await tester.pump();
     favoritesNode = tester.getSemantics(favoritesFinder);
     expect(favoritesNode.flagsCollection.isSelected, Tristate.isTrue);
+    allFilterNode = tester.getSemantics(allFilterFinder);
+    expect(allFilterNode.flagsCollection.isSelected, Tristate.isFalse);
 
     await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.classic)));
     await tester.pump();
@@ -1662,6 +3250,19 @@ void main() {
   });
 }
 
+List<String> _visibleSearchResultIds(WidgetTester tester) {
+  return tester
+      .widgetList<ListTile>(
+        find.descendant(
+          of: find.byKey(storeSearchResultsKey),
+          matching: find.byType(ListTile),
+        ),
+      )
+      .map((tile) => (tile.key! as ValueKey<String>).value)
+      .map((key) => key.replaceFirst('store-search-result-', ''))
+      .toList();
+}
+
 class _SuccessfulExternalUriLauncher implements ExternalUriLauncher {
   int callCount = 0;
 
@@ -1701,6 +3302,7 @@ class _FakeCurrentLocationService implements CurrentLocationService {
     CurrentLocation? location,
     this.currentLocationError,
     this.currentLocationHandler,
+    this.checkPermissionHandler,
   }) : requestedPermission = requestedPermission ?? checkedPermission,
        location =
            location ??
@@ -1712,6 +3314,7 @@ class _FakeCurrentLocationService implements CurrentLocationService {
   final CurrentLocation location;
   final Object? currentLocationError;
   final Future<CurrentLocation> Function()? currentLocationHandler;
+  final Future<LocationPermissionStatus> Function()? checkPermissionHandler;
   int checkPermissionCalls = 0;
   int requestPermissionCalls = 0;
   int currentLocationCalls = 0;
@@ -1723,6 +3326,10 @@ class _FakeCurrentLocationService implements CurrentLocationService {
   @override
   Future<LocationPermissionStatus> checkPermission() async {
     checkPermissionCalls += 1;
+    final handler = checkPermissionHandler;
+    if (handler != null) {
+      return handler();
+    }
     return checkedPermission;
   }
 
@@ -1737,13 +3344,18 @@ class _FakeCurrentLocationService implements CurrentLocationService {
     currentLocationCalls += 1;
     final handler = currentLocationHandler;
     if (handler != null) {
-      return handler();
+      final value = await handler();
+      return value.capturedAt == null
+          ? value.withCapturedAt(DateTime.now())
+          : value;
     }
     final error = currentLocationError;
     if (error != null) {
       throw error;
     }
-    return location;
+    return location.capturedAt == null
+        ? location.withCapturedAt(DateTime.now())
+        : location;
   }
 
   @override

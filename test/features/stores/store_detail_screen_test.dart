@@ -4,6 +4,7 @@ import 'package:burger_map_korea/app/app_theme.dart';
 import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
 import 'package:burger_map_korea/features/stores/presentation/store_detail_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,6 +33,7 @@ void main() {
     ExternalUriLauncher? externalUriLauncher,
     bool isFavorite = false,
     StoreFavoriteChanged? onFavoriteChanged,
+    ValueListenable<Set<String>>? publicStoreIds,
     double textScale = 1,
   }) {
     return MaterialApp(
@@ -50,6 +52,7 @@ void main() {
             externalUriLauncher ?? const UrlLauncherExternalUriLauncher(),
         isFavorite: isFavorite,
         onFavoriteChanged: onFavoriteChanged,
+        publicStoreIds: publicStoreIds,
       ),
     );
   }
@@ -72,6 +75,27 @@ void main() {
     expect(find.textContaining('영업시간'), findsNothing);
     expect(find.textContaining('리뷰'), findsNothing);
     expect(find.textContaining('평점'), findsNothing);
+  });
+
+  testWidgets('replaces details when the store leaves the public snapshot', (
+    tester,
+  ) async {
+    final selectedStore = store(id: 'public-store');
+    final publicStoreIds = ValueNotifier<Set<String>>(<String>{
+      selectedStore.id,
+    });
+    addTearDown(publicStoreIds.dispose);
+
+    await tester.pumpWidget(
+      detailApp(selectedStore, publicStoreIds: publicStoreIds),
+    );
+    expect(find.text(selectedStore.address), findsOneWidget);
+
+    publicStoreIds.value = const <String>{};
+    await tester.pump();
+
+    expect(find.text(selectedStore.address), findsNothing);
+    expect(find.text('이 매장은 더 이상 공개 목록에서 제공되지 않습니다.'), findsOneWidget);
   });
 
   test('maps verification statuses to conservative Korean labels', () {

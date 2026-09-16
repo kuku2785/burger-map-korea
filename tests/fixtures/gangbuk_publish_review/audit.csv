@@ -1,0 +1,5 @@
+candidateId,provider,evidenceType,evidenceUrl,matchedName,matchedAddress,checkedAt,statusNote
+synthetic-gangbuk-001,synthetic_provider_a,synthetic_listing,https://provider-a.example.invalid/stores/alpha,Synthetic Burger Alpha,서울특별시 강북구 합성로 101,2026-09-15T09:00:00+09:00,Synthetic evidence only
+synthetic-gangbuk-001,synthetic_provider_b,synthetic_listing,https://provider-b.example.invalid/places/alpha,Synthetic Burger Alpha,서울특별시 강북구 합성로 101,2026-09-15T09:01:00+09:00,Synthetic evidence only
+synthetic-gangbuk-002,synthetic_provider_a,synthetic_listing,https://provider-a.example.invalid/stores/beta,Synthetic Burger Beta,서울특별시 강북구 모의로 202,2026-09-15T09:02:00+09:00,Synthetic evidence only
+synthetic-gangbuk-002,synthetic_provider_b,synthetic_listing,https://provider-b.example.invalid/places/beta,Synthetic Burger Beta,서울특별시 강북구 모의로 202,2026-09-15T09:03:00+09:00,Synthetic evidence only

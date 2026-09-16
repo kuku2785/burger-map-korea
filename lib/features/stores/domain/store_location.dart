@@ -1,3 +1,5 @@
+import 'store_region.dart';
+
 class StoreLocation {
   StoreLocation({
     required this.id,
@@ -7,6 +9,7 @@ class StoreLocation {
     required this.address,
     required this.burgerStyle,
     this.verificationStatus,
+    this.region,
   }) {
     if (!latitude.isFinite || latitude < -90 || latitude > 90) {
       throw ArgumentError.value(
@@ -32,4 +35,5 @@ class StoreLocation {
   final String address;
   final String burgerStyle;
   final String? verificationStatus;
+  final StoreRegion? region;
 }

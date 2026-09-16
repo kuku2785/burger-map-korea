@@ -30,7 +30,10 @@ class FlutterSupabaseSecurityTest(unittest.TestCase):
 
     def test_loader_uses_verified_active_select_only(self) -> None:
         self.assertIn(".from('stores')", self.normalized_loader)
-        self.assertIn(".select(supabaseStoreSelectColumns)", self.normalized_loader)
+        self.assertIn(
+            ".select( supabaseStoreSelectColumnsFor(enableStoreRegions: enableStoreRegions), )",
+            self.normalized_loader,
+        )
         self.assertIn(
             ".eq('verification_status', supabasePublicVerificationStatus)",
             self.normalized_loader,
@@ -43,12 +46,23 @@ class FlutterSupabaseSecurityTest(unittest.TestCase):
             ".order(supabaseStoreOrderColumn, ascending: true)",
             self.normalized_loader,
         )
-        self.assertIn("const supabasePublicVerificationStatus = 'verified'", self.loader)
+        self.assertIn(
+            "const supabasePublicVerificationStatus = 'verified'", self.loader
+        )
         self.assertIn("const supabasePublicIsActive = true", self.loader)
 
     def test_loader_selects_only_allowed_columns(self) -> None:
         self.assertIn(
             "'id,name,address,latitude,longitude,burger_style,verification_status'",
+            self.loader,
+        )
+        self.assertIn("const supabaseStoreRegionColumn = 'region'", self.loader)
+        self.assertIn(
+            "if (!enableStoreRegions) { return supabaseStoreSelectColumns; }",
+            self.normalized_loader,
+        )
+        self.assertIn(
+            "return '$supabaseStoreSelectColumns,$supabaseStoreRegionColumn';",
             self.loader,
         )
 

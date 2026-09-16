@@ -15,6 +15,7 @@ void main() {
           url: config.normalizedSupabaseUrl,
           publishableKey: config.normalizedSupabasePublishableKey,
           enableDebugDiagnostics: config.showsDevelopmentDiagnostics,
+          enableStoreRegions: config.enableStoreRegions,
         )
       : null;
 

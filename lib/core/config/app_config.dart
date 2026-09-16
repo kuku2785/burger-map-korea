@@ -189,8 +189,12 @@ class AppConfig {
     required this.environment,
     required this.googleMapsApiKey,
     this.storeDataMode = StoreDataMode.pilot,
+    this.enableStoreRegions = false,
     this.supabaseUrl = '',
     this.supabasePublishableKey = '',
+    this.supportUrl = '',
+    this.privacyPolicyUrl = '',
+    this.operatorName = '',
     this.isReleaseMode = false,
   });
 
@@ -203,20 +207,31 @@ class AppConfig {
       storeDataMode: StoreDataMode.parse(
         const String.fromEnvironment('STORE_DATA_MODE', defaultValue: 'pilot'),
       ),
+      enableStoreRegions: const bool.fromEnvironment(
+        'STORE_REGIONS_ENABLED',
+        defaultValue: false,
+      ),
       supabaseUrl: const String.fromEnvironment('SUPABASE_URL'),
       supabasePublishableKey: const String.fromEnvironment(
         'SUPABASE_PUBLISHABLE_KEY',
       ),
       isReleaseMode: kReleaseMode,
+      supportUrl: const String.fromEnvironment('SUPPORT_URL'),
+      privacyPolicyUrl: const String.fromEnvironment('PRIVACY_POLICY_URL'),
+      operatorName: const String.fromEnvironment('OPERATOR_NAME'),
     );
   }
 
   final AppEnvironment environment;
   final String googleMapsApiKey;
   final StoreDataMode storeDataMode;
+  final bool enableStoreRegions;
   final String supabaseUrl;
   final String supabasePublishableKey;
   final bool isReleaseMode;
+  final String supportUrl;
+  final String privacyPolicyUrl;
+  final String operatorName;
 
   RuntimePolicy get runtimePolicy => resolveRuntimePolicy(
     requestedEnvironment: environment,

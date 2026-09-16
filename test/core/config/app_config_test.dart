@@ -70,6 +70,17 @@ void main() {
       expect(config.usesStagingStoreData, isFalse);
       expect(config.usesSupabaseStoreData, isFalse);
       expect(config.showsDevelopmentDiagnostics, isTrue);
+      expect(config.enableStoreRegions, isFalse);
+    });
+
+    test('AppConfig accepts the explicit store region enablement flag', () {
+      const config = AppConfig(
+        environment: AppEnvironment.development,
+        googleMapsApiKey: '',
+        enableStoreRegions: true,
+      );
+
+      expect(config.enableStoreRegions, isTrue);
     });
 
     test('release AppConfig cannot select pilot or staging data', () {

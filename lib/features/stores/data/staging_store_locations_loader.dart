@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import '../domain/store_location.dart';
+import '../domain/store_region.dart';
 
 const yongsanStagingAssetPath = 'assets/dev/yongsan_burger_stores_staging.json';
 const _expectedStagingStoreCount = 24;
-const _allowedFields = {
+const _requiredFields = {
   'id',
   'name',
   'address',
@@ -15,6 +16,7 @@ const _allowedFields = {
   'burgerStyle',
   'verificationStatus',
 };
+const _allowedFields = {..._requiredFields, 'region'};
 
 Future<List<StoreLocation>> loadYongsanStagingStoreLocations({
   AssetBundle? bundle,
@@ -41,7 +43,7 @@ List<StoreLocation> parseYongsanStagingStoreLocations(String jsonText) {
   for (final item in decoded) {
     if (item is! Map<String, dynamic> ||
         item.keys.toSet().difference(_allowedFields).isNotEmpty ||
-        _allowedFields.difference(item.keys.toSet()).isNotEmpty) {
+        _requiredFields.difference(item.keys.toSet()).isNotEmpty) {
       throw const FormatException('staging 매장 JSON 필드가 올바르지 않습니다.');
     }
     final id = item['id'];
@@ -51,6 +53,7 @@ List<StoreLocation> parseYongsanStagingStoreLocations(String jsonText) {
     final longitude = item['longitude'];
     final burgerStyle = item['burgerStyle'];
     final verificationStatus = item['verificationStatus'];
+    final regionValue = item['region'];
     if (id is! String ||
         id.trim().isEmpty ||
         !ids.add(id) ||
@@ -76,6 +79,7 @@ List<StoreLocation> parseYongsanStagingStoreLocations(String jsonText) {
         address: address,
         burgerStyle: burgerStyle,
         verificationStatus: verificationStatus as String,
+        region: regionValue == null ? null : StoreRegion.fromJson(regionValue),
       ),
     );
   }

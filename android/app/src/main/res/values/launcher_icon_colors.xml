@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches AppTheme.light: seed #2F6B4F and scaffold #F8F7F3. -->
+    <color name="launcher_icon_background">#2F6B4F</color>
+    <color name="launcher_icon_mark">#F8F7F3</color>
+</resources>

@@ -5,12 +5,15 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/store_location.dart';
+import '../domain/store_region.dart';
 
 const supabaseStoreSelectColumns =
     'id,name,address,latitude,longitude,burger_style,verification_status';
+const supabaseStoreRegionColumn = 'region';
 const supabasePublicVerificationStatus = 'verified';
 const supabasePublicIsActive = true;
 const supabaseStoreOrderColumn = 'name';
+const defaultSupabaseStoreLoadTimeout = Duration(seconds: 10);
 
 typedef SupabaseClientInitializer =
     Future<SupabaseClient> Function({
@@ -42,28 +45,70 @@ class SupabaseStoreLocationsLoader {
     required this.publishableKey,
     SupabaseClientInitializer? initializer,
     SupabaseStoreRowsFetcher? rowsFetcher,
+    this.requestTimeout = defaultSupabaseStoreLoadTimeout,
+    this.enableStoreRegions = false,
     this.enableDebugDiagnostics = false,
     SupabaseDiagnosticLogger? diagnosticLogger,
   }) : _initializer = initializer ?? initializeSupabaseClient,
-       _rowsFetcher = rowsFetcher ?? fetchPublicSupabaseStoreRows,
+       _rowsFetcher =
+           rowsFetcher ??
+           ((client) => fetchPublicSupabaseStoreRows(
+             client,
+             enableStoreRegions: enableStoreRegions,
+           )),
        _diagnosticLogger = diagnosticLogger ?? _defaultDiagnosticLogger;
 
   final String url;
   final String publishableKey;
   final SupabaseClientInitializer _initializer;
   final SupabaseStoreRowsFetcher _rowsFetcher;
+  final Duration requestTimeout;
+  final bool enableStoreRegions;
   final bool enableDebugDiagnostics;
   final SupabaseDiagnosticLogger _diagnosticLogger;
 
   SupabaseClient? _client;
 
   Future<List<StoreLocation>> load() async {
+    var expired = false;
+    final elapsed = Stopwatch()..start();
+    void checkDeadline() {
+      if (expired || elapsed.elapsed >= requestTimeout) {
+        throw TimeoutException('Store load deadline exceeded');
+      }
+    }
+
+    try {
+      return await _loadWithinTimeout(checkDeadline).timeout(
+        requestTimeout,
+        onTimeout: () {
+          // timeout does not cancel the underlying SDK/HTTP operation.
+          expired = true;
+          throw TimeoutException('Store load deadline exceeded');
+        },
+      );
+    } on SupabaseStoreLoadException {
+      rethrow;
+    } on Object catch (error) {
+      throw _safeFailure(SupabaseStoreLoadStage.unknown, error);
+    }
+  }
+
+  Future<List<StoreLocation>> _loadWithinTimeout(
+    void Function() checkDeadline,
+  ) async {
     late final SupabaseClient client;
     try {
-      client = _client ??= await _initializer(
-        url: url.trim(),
-        publishableKey: publishableKey.trim(),
-      );
+      client =
+          _client ??
+          await _initializer(
+            url: url.trim(),
+            publishableKey: publishableKey.trim(),
+          );
+      // An expired initialization must neither start a query nor replace the
+      // client used by a subsequent successful attempt.
+      checkDeadline();
+      _client ??= client;
     } on Object catch (error) {
       throw _safeFailure(SupabaseStoreLoadStage.initialization, error);
     }
@@ -71,12 +116,16 @@ class SupabaseStoreLocationsLoader {
     late final List<Map<String, dynamic>> rows;
     try {
       rows = await _rowsFetcher(client);
+      checkDeadline();
     } on Object catch (error) {
       throw _safeFailure(SupabaseStoreLoadStage.select, error);
     }
 
     try {
-      return mapSupabaseStoreRows(rows);
+      final stores = mapSupabaseStoreRows(rows);
+      // Synchronous validation can delay Timer dispatch; reject overdue results.
+      checkDeadline();
+      return stores;
     } on Object catch (error) {
       throw _safeFailure(SupabaseStoreLoadStage.mapping, error);
     }
@@ -150,11 +199,14 @@ String _safeDiagnosticCode(SupabaseStoreLoadStage stage, Object error) {
 }
 
 Future<List<Map<String, dynamic>>> fetchPublicSupabaseStoreRows(
-  SupabaseClient client,
-) async {
+  SupabaseClient client, {
+  bool enableStoreRegions = false,
+}) async {
   final response = await client
       .from('stores')
-      .select(supabaseStoreSelectColumns)
+      .select(
+        supabaseStoreSelectColumnsFor(enableStoreRegions: enableStoreRegions),
+      )
       .eq('verification_status', supabasePublicVerificationStatus)
       .eq('is_active', supabasePublicIsActive)
       .order(supabaseStoreOrderColumn, ascending: true);
@@ -162,6 +214,13 @@ Future<List<Map<String, dynamic>>> fetchPublicSupabaseStoreRows(
   return response
       .map<Map<String, dynamic>>((row) => Map<String, dynamic>.from(row))
       .toList(growable: false);
+}
+
+String supabaseStoreSelectColumnsFor({bool enableStoreRegions = false}) {
+  if (!enableStoreRegions) {
+    return supabaseStoreSelectColumns;
+  }
+  return '$supabaseStoreSelectColumns,$supabaseStoreRegionColumn';
 }
 
 List<StoreLocation> mapSupabaseStoreRows(List<Map<String, dynamic>> rows) {
@@ -177,6 +236,7 @@ StoreLocation _mapSupabaseStoreRow(Map<String, dynamic> row) {
   final longitude = row['longitude'];
   final burgerStyleValue = row['burger_style'];
   final verificationStatus = row['verification_status'];
+  final regionValue = row['region'];
 
   if (id.isEmpty ||
       name is! String ||
@@ -199,5 +259,6 @@ StoreLocation _mapSupabaseStoreRow(Map<String, dynamic> row) {
     address: address.trim(),
     burgerStyle: burgerStyle.isEmpty ? '미분류' : burgerStyle,
     verificationStatus: verificationStatus as String,
+    region: regionValue == null ? null : StoreRegion.fromJson(regionValue),
   );
 }

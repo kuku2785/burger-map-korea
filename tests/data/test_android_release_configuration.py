@@ -129,6 +129,11 @@ class AndroidReleaseConfigurationTest(unittest.TestCase):
         verifier = REPO_ROOT / "scripts" / "release" / "verify_release_bundle.py"
         self.assertTrue(verifier.is_file())
 
+        ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("test_verify_release_bundle.py", ci)
+
 
 if __name__ == "__main__":
     unittest.main()

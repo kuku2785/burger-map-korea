@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import importlib.util
 import io
@@ -46,6 +47,15 @@ class ReleaseBundleVerificationTest(unittest.TestCase):
                 bundle.writestr(name, content)
         return path
 
+    @staticmethod
+    def _jwt(payload: dict[str, str]) -> str:
+        def encode(value: dict[str, str]) -> str:
+            raw = json.dumps(value, separators=(",", ":")).encode("utf-8")
+            return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+        header = encode({"alg": "HS256", "typ": "JWT"})
+        return f"{header}.{encode(payload)}.synthetic-signature-value"
+
     def test_project_packages_staging_asset_from_debug_source_set_only(self) -> None:
         pubspec = (PROJECT_ROOT / "pubspec.yaml").read_text(encoding="utf-8")
         gradle = (PROJECT_ROOT / "android" / "app" / "build.gradle.kts").read_text(
@@ -75,6 +85,61 @@ class ReleaseBundleVerificationTest(unittest.TestCase):
         self.assertEqual(inspection.forbidden_entry_hits, 0)
         self.assertEqual(inspection.asset_manifest_hits, 0)
         self.assertEqual(inspection.staging_value_hits, 0)
+        self.assertEqual(inspection.public_config_hits, 0)
+
+    def test_public_mobile_configuration_is_reported_but_allowed(self) -> None:
+        maps_key = "AIza" + "P" * 35
+        supabase_url = "https://abcdefghijklmnopqrst.supabase.co"
+        publishable_key = "sb_publishable_" + "P" * 24
+        anon_jwt = self._jwt({"role": "anon", "ref": "synthetic"})
+        bundle = self._bundle(
+            {
+                "base/lib/arm64-v8a/libapp.so": (
+                    f"{maps_key}|{supabase_url}|{publishable_key}|{anon_jwt}"
+                ).encode()
+            }
+        )
+
+        inspection = MODULE.inspect_release_bundle(bundle)
+        summary = MODULE.format_summary(inspection)
+
+        self.assertTrue(inspection.is_safe)
+        self.assertEqual(inspection.secret_pattern_hits, 0)
+        self.assertEqual(inspection.public_config_hits, 4)
+        for value in (maps_key, supabase_url, publishable_key, anon_jwt):
+            self.assertNotIn(value, summary)
+
+    def test_server_credentials_fail_without_printing_values(self) -> None:
+        secret_key = "sb_secret_" + "S" * 24
+        service_jwt = self._jwt({"role": "service_role", "ref": "synthetic"})
+        private_key = "-----BEGIN PRIVATE KEY-----\nsynthetic\n-----END PRIVATE KEY-----"
+        bundle = self._bundle(
+            {"base/lib/arm64-v8a/libapp.so": "|".join(
+                (secret_key, service_jwt, private_key)
+            ).encode()}
+        )
+
+        inspection = MODULE.inspect_release_bundle(bundle)
+        summary = MODULE.format_summary(inspection)
+
+        self.assertFalse(inspection.is_safe)
+        self.assertEqual(inspection.secret_pattern_hits, 3)
+        self.assertEqual(inspection.public_config_hits, 0)
+        for value in (secret_key, service_jwt, private_key):
+            self.assertNotIn(value, summary)
+
+    def test_non_anon_jwt_is_treated_as_a_secret(self) -> None:
+        user_jwt = self._jwt({"role": "authenticated", "sub": "synthetic-user"})
+        bundle = self._bundle(
+            {"base/lib/arm64-v8a/libapp.so": user_jwt.encode()}
+        )
+
+        inspection = MODULE.inspect_release_bundle(bundle)
+
+        self.assertFalse(inspection.is_safe)
+        self.assertEqual(inspection.secret_pattern_hits, 1)
+        self.assertEqual(inspection.public_config_hits, 0)
+        self.assertNotIn(user_jwt, MODULE.format_summary(inspection))
 
     def test_staging_zip_entry_fails(self) -> None:
         bundle = self._bundle(
@@ -106,11 +171,10 @@ class ReleaseBundleVerificationTest(unittest.TestCase):
     def test_staging_identity_in_bundle_fails_without_logging_values(self) -> None:
         synthetic_id = "synthetic-candidate-001"
         synthetic_name = "Synthetic Burger Lab"
-        synthetic_key = "AIza" + "A" * 35
         bundle = self._bundle(
             {
                 "base/lib/arm64-v8a/libapp.so": (
-                    f"{synthetic_id}|{synthetic_name}|{synthetic_key}".encode()
+                    f"{synthetic_id}|{synthetic_name}".encode()
                 )
             }
         )
@@ -122,11 +186,28 @@ class ReleaseBundleVerificationTest(unittest.TestCase):
         summary = MODULE.format_summary(inspection)
 
         self.assertFalse(inspection.is_safe)
-        self.assertGreaterEqual(inspection.staging_value_hits, 2)
-        self.assertEqual(inspection.secret_pattern_hits, 1)
+        self.assertEqual(inspection.staging_value_hits, 1)
+        self.assertEqual(inspection.secret_pattern_hits, 0)
         self.assertNotIn(synthetic_id, summary)
         self.assertNotIn(synthetic_name, summary)
-        self.assertNotIn(synthetic_key, summary)
+
+    def test_matching_store_name_and_address_do_not_imply_staging_leak(self) -> None:
+        bundle = self._bundle(
+            {
+                "base/lib/arm64-v8a/libapp.so": (
+                    b"Synthetic Burger Lab|Synthetic district 1"
+                )
+            }
+        )
+
+        inspection = MODULE.inspect_release_bundle(
+            bundle,
+            staging_json_path=self.staging_json,
+        )
+
+        self.assertTrue(inspection.is_safe)
+        self.assertEqual(inspection.staging_value_hits, 0)
+        self.assertEqual(inspection.staging_values_checked, 1)
 
     def test_short_name_tokens_do_not_create_binary_false_positives(self) -> None:
         self.staging_json.write_text(

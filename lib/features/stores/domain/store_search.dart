@@ -1,5 +1,6 @@
 import 'burger_style.dart';
 import 'store_location.dart';
+import 'store_region.dart';
 
 String normalizeStoreSearchText(String value) {
   return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
@@ -11,9 +12,13 @@ List<StoreLocation> filterStoreLocations(
   BurgerStyle? burgerStyle,
   Set<String> favoriteStoreIds = const <String>{},
   bool favoritesOnly = false,
+  StoreRegionFilter? regionFilter,
 }) {
   final normalizedQuery = normalizeStoreSearchText(query);
-  if (normalizedQuery.isEmpty && burgerStyle == null && !favoritesOnly) {
+  if (normalizedQuery.isEmpty &&
+      burgerStyle == null &&
+      !favoritesOnly &&
+      regionFilter == null) {
     return List<StoreLocation>.unmodifiable(stores);
   }
 
@@ -28,7 +33,11 @@ List<StoreLocation> filterStoreLocations(
           BurgerStyle.parse(store.burgerStyle) == burgerStyle;
       final matchesFavorite =
           !favoritesOnly || favoriteStoreIds.contains(store.id);
-      return matchesQuery && matchesBurgerStyle && matchesFavorite;
+      final matchesRegion = regionFilter?.matches(store.region) ?? true;
+      return matchesQuery &&
+          matchesBurgerStyle &&
+          matchesFavorite &&
+          matchesRegion;
     }),
   );
 }
