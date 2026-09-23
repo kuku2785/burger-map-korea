@@ -7,6 +7,7 @@ import '../features/auth/application/auth_controller.dart';
 import '../features/auth/presentation/auth_gate.dart';
 import '../features/favorites/domain/favorite_store_ids_store.dart';
 import '../features/map/presentation/map_screen.dart';
+import '../features/menu/domain/menu_repository.dart';
 import 'app_theme.dart';
 
 typedef AuthControllerLoader = Future<AuthController> Function();
@@ -19,6 +20,7 @@ class BurgerMapApp extends StatelessWidget {
     this.favoriteStoreIdsStore,
     this.mapSurfaceBuilder,
     this.authControllerLoader,
+    this.menuRepository,
   });
 
   final AppConfig config;
@@ -26,6 +28,7 @@ class BurgerMapApp extends StatelessWidget {
   final FavoriteStoreIdsStore? favoriteStoreIdsStore;
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
   final AuthControllerLoader? authControllerLoader;
+  final MenuRepository? menuRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +52,7 @@ class BurgerMapApp extends StatelessWidget {
     favoriteStoreIdsStore: favoriteStoreIdsStore,
     mapSurfaceBuilder: mapSurfaceBuilder,
     onSignOut: onSignOut,
+    menuRepository: menuRepository,
   );
 }
 

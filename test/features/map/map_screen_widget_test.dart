@@ -7,6 +7,8 @@ import 'package:burger_map_korea/features/favorites/domain/favorite_store_ids_st
 import 'package:burger_map_korea/features/location/domain/current_location_service.dart';
 import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
+import 'package:burger_map_korea/features/menu/domain/menu_item.dart';
+import 'package:burger_map_korea/features/menu/domain/menu_repository.dart';
 import 'package:burger_map_korea/features/stores/application/public_store_controller.dart';
 import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
 import 'package:burger_map_korea/features/stores/data/itaewon_store_locations.dart';
@@ -139,6 +141,7 @@ void main() {
     ValueChanged<ClusterManager>? onClusterManagerReady,
     ExternalUriLauncher? externalUriLauncher,
     FavoriteStoreIdsStore? favoriteStoreIdsStore,
+    MenuRepository? menuRepository,
     Duration storeLoadTimeout = const Duration(seconds: 10),
     Duration storeRefreshInterval = const Duration(minutes: 5),
     PublicStoreClock? storeClock,
@@ -169,6 +172,7 @@ void main() {
           externalUriLauncher: externalUriLauncher,
           favoriteStoreIdsStore:
               favoriteStoreIdsStore ?? _MemoryFavoriteStoreIdsStore(),
+          menuRepository: menuRepository,
           storeLoadTimeout: storeLoadTimeout,
           storeRefreshInterval: storeRefreshInterval,
           storeClock: storeClock,
@@ -2793,6 +2797,7 @@ void main() {
     (tester) async {
       var loadCalls = 0;
       final externalUriLauncher = _SuccessfulExternalUriLauncher();
+      final requestedMenuStores = <String>[];
       await pumpSearchableMap(
         tester,
         loader: () async {
@@ -2804,6 +2809,21 @@ void main() {
         },
         storeCameraMover: (_) async {},
         externalUriLauncher: externalUriLauncher,
+        menuRepository: _InlineMenuRepository((storeId) async {
+          requestedMenuStores.add(storeId);
+          return [
+            MenuItem(
+              id: 'menu-a',
+              storeId: storeId,
+              name: '알파 버거 메뉴',
+              price: 12900,
+              category: null,
+              description: null,
+              isSignature: true,
+              displayOrder: 0,
+            ),
+          ];
+        }),
       );
 
       await tester.tap(find.byKey(burgerStyleFilterKey(BurgerStyle.smash)));
@@ -2825,6 +2845,8 @@ void main() {
       expect(identical(detailScreen.store, searchableStores.first), isTrue);
       expect(find.text('Alpha Burger'), findsOneWidget);
       expect(find.text('Seoul Yongsan Alpha-ro 1'), findsOneWidget);
+      expect(find.text('알파 버거 메뉴'), findsOneWidget);
+      expect(requestedMenuStores, ['alpha']);
 
       await tester.tap(find.byKey(storeDirectionsButtonKey));
       await tester.pumpAndSettle();
@@ -3363,4 +3385,13 @@ class _FakeCurrentLocationService implements CurrentLocationService {
     openAppSettingsCalls += 1;
     return true;
   }
+}
+
+class _InlineMenuRepository implements MenuRepository {
+  _InlineMenuRepository(this._fetch);
+
+  final Future<List<MenuItem>> Function(String storeId) _fetch;
+
+  @override
+  Future<List<MenuItem>> fetchMenusForStore(String storeId) => _fetch(storeId);
 }

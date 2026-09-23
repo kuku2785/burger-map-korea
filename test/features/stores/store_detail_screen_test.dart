@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:burger_map_korea/app/app_theme.dart';
 import 'package:burger_map_korea/features/stores/data/external_uri_launcher.dart';
+import 'package:burger_map_korea/features/menu/domain/menu_item.dart';
+import 'package:burger_map_korea/features/menu/domain/menu_repository.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
 import 'package:burger_map_korea/features/stores/presentation/store_detail_screen.dart';
 import 'package:flutter/foundation.dart';
@@ -34,6 +36,7 @@ void main() {
     bool isFavorite = false,
     StoreFavoriteChanged? onFavoriteChanged,
     ValueListenable<Set<String>>? publicStoreIds,
+    MenuRepository? menuRepository,
     double textScale = 1,
   }) {
     return MaterialApp(
@@ -53,6 +56,7 @@ void main() {
         isFavorite: isFavorite,
         onFavoriteChanged: onFavoriteChanged,
         publicStoreIds: publicStoreIds,
+        menuRepository: menuRepository,
       ),
     );
   }
@@ -96,6 +100,44 @@ void main() {
 
     expect(find.text(selectedStore.address), findsNothing);
     expect(find.text('이 매장은 더 이상 공개 목록에서 제공되지 않습니다.'), findsOneWidget);
+  });
+
+  testWidgets('hides pending menu when its store leaves the public snapshot', (
+    tester,
+  ) async {
+    final selectedStore = store(id: 'public-store');
+    final publicStoreIds = ValueNotifier<Set<String>>({selectedStore.id});
+    addTearDown(publicStoreIds.dispose);
+    final pending = Completer<List<MenuItem>>();
+    await tester.pumpWidget(
+      detailApp(
+        selectedStore,
+        publicStoreIds: publicStoreIds,
+        menuRepository: _PendingMenuRepository(pending.future),
+      ),
+    );
+    expect(find.text('메뉴'), findsOneWidget);
+
+    publicStoreIds.value = const <String>{};
+    await tester.pump();
+    pending.complete([
+      const MenuItem(
+        id: 'menu-a',
+        storeId: 'public-store',
+        name: '오래된 메뉴',
+        price: 12000,
+        category: null,
+        description: null,
+        isSignature: false,
+        displayOrder: 0,
+      ),
+    ]);
+    await tester.pump();
+
+    expect(find.text('오래된 메뉴'), findsNothing);
+    expect(find.text('메뉴'), findsNothing);
+    expect(find.text('이 매장은 더 이상 공개 목록에서 제공되지 않습니다.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   test('maps verification statuses to conservative Korean labels', () {
@@ -328,4 +370,13 @@ class _FakeExternalUriLauncher implements ExternalUriLauncher {
     }
     return pendingResult?.future ?? Future<bool>.value(result);
   }
+}
+
+class _PendingMenuRepository implements MenuRepository {
+  _PendingMenuRepository(this.result);
+
+  final Future<List<MenuItem>> result;
+
+  @override
+  Future<List<MenuItem>> fetchMenusForStore(String storeId) => result;
 }

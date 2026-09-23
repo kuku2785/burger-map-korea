@@ -13,6 +13,7 @@ import '../../favorites/domain/favorite_store_ids_store.dart';
 import '../../location/application/current_location_controller.dart';
 import '../../location/data/geolocator_current_location_service.dart';
 import '../../location/domain/current_location_service.dart';
+import '../../menu/domain/menu_repository.dart';
 import '../../stores/application/public_store_controller.dart';
 import '../../stores/data/external_uri_launcher.dart';
 import '../../stores/data/itaewon_store_locations.dart';
@@ -100,6 +101,7 @@ class MapScreen extends StatefulWidget {
     this.currentLocationTimeout = const Duration(seconds: 10),
     this.mapCameraTimeout = const Duration(seconds: 10),
     this.onSignOut,
+    this.menuRepository,
   });
 
   final AppConfig config;
@@ -125,6 +127,7 @@ class MapScreen extends StatefulWidget {
   final Duration currentLocationTimeout;
   final Duration mapCameraTimeout;
   final Future<void> Function()? onSignOut;
+  final MenuRepository? menuRepository;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -1313,6 +1316,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         builder: (context) => externalUriLauncher == null
             ? StoreDetailScreen(
                 store: store,
+                menuRepository: widget.menuRepository,
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>
                     _setStoreFavorite(store, isFavorite),
@@ -1330,6 +1334,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               )
             : StoreDetailScreen(
                 store: store,
+                menuRepository: widget.menuRepository,
                 externalUriLauncher: externalUriLauncher,
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>

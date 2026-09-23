@@ -6,6 +6,8 @@ import '../data/external_uri_launcher.dart';
 import '../domain/burger_style.dart';
 import '../domain/google_maps_directions.dart';
 import '../domain/store_location.dart';
+import '../../menu/domain/menu_repository.dart';
+import '../../menu/presentation/store_menu_section.dart';
 
 const storeDetailBackButtonKey = ValueKey<String>('store-detail-back-button');
 const storeAddressCopyButtonKey = ValueKey<String>('store-address-copy-button');
@@ -28,6 +30,7 @@ class StoreDetailScreen extends StatefulWidget {
     this.publicStoreState,
     this.storeProvider,
     this.unavailableMessageProvider,
+    this.menuRepository,
   });
 
   final StoreLocation store;
@@ -41,6 +44,7 @@ class StoreDetailScreen extends StatefulWidget {
   final Listenable? publicStoreState;
   final StoreLocation? Function()? storeProvider;
   final String Function()? unavailableMessageProvider;
+  final MenuRepository? menuRepository;
 
   @override
   State<StoreDetailScreen> createState() => _StoreDetailScreenState();
@@ -224,6 +228,13 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                       label: '버거 스타일',
                       value: storeBurgerStyleLabel(store.burgerStyle),
                     ),
+                    if (widget.menuRepository != null) ...[
+                      const SizedBox(height: 32),
+                      StoreMenuSection(
+                        storeId: store.id,
+                        repository: widget.menuRepository!,
+                      ),
+                    ],
                   ],
                 ),
               ),
