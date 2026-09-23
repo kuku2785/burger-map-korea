@@ -53,6 +53,7 @@ class AuthController extends ChangeNotifier {
   String? _message;
 
   AuthGateState get state => _state;
+  bool get hasSession => _repository.currentUserId != null;
   AuthUserProfile? get profile => _profile;
   bool get sendingMagicLink => _sendingMagicLink;
   bool get submittingNickname => _submittingNickname;

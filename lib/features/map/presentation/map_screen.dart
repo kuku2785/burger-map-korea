@@ -63,6 +63,9 @@ const mapZoomOutButtonKey = ValueKey<String>('map-zoom-out-button');
 const currentLocationButtonKey = ValueKey<String>('current-location-button');
 const appInfoButtonKey = ValueKey<String>('app-info-button');
 const logoutButtonKey = ValueKey<String>('logout-button');
+const loginButtonKey = ValueKey<String>('login-button');
+const nicknameButtonKey = ValueKey<String>('nickname-button');
+const authRetryButtonKey = ValueKey<String>('auth-retry-button');
 const storeDataReadyStatusKey = ValueKey<String>('store-data-ready-status');
 const minimumMapZoom = 3.0;
 const maximumMapZoom = 20.0;
@@ -100,7 +103,10 @@ class MapScreen extends StatefulWidget {
     this.maximumCurrentLocationAge = const Duration(minutes: 2),
     this.currentLocationTimeout = const Duration(seconds: 10),
     this.mapCameraTimeout = const Duration(seconds: 10),
+    this.onSignIn,
     this.onSignOut,
+    this.onSetNickname,
+    this.onRetryAuth,
     this.menuRepository,
   });
 
@@ -126,7 +132,10 @@ class MapScreen extends StatefulWidget {
   final Duration maximumCurrentLocationAge;
   final Duration currentLocationTimeout;
   final Duration mapCameraTimeout;
+  final VoidCallback? onSignIn;
   final Future<void> Function()? onSignOut;
+  final VoidCallback? onSetNickname;
+  final VoidCallback? onRetryAuth;
   final MenuRepository? menuRepository;
 
   @override
@@ -345,6 +354,27 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          if (widget.onSignIn != null && widget.onSignOut == null)
+            IconButton(
+              key: loginButtonKey,
+              tooltip: '로그인',
+              icon: const Icon(Icons.login),
+              onPressed: widget.onSignIn,
+            ),
+          if (widget.onSetNickname != null)
+            IconButton(
+              key: nicknameButtonKey,
+              tooltip: '닉네임 설정',
+              icon: const Icon(Icons.account_circle_outlined),
+              onPressed: widget.onSetNickname,
+            ),
+          if (widget.onRetryAuth != null)
+            IconButton(
+              key: authRetryButtonKey,
+              tooltip: '계정 상태 다시 시도',
+              icon: const Icon(Icons.sync_problem_outlined),
+              onPressed: widget.onRetryAuth,
+            ),
           if (widget.onSignOut != null)
             IconButton(
               key: logoutButtonKey,

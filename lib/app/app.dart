@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../core/config/app_config.dart';
@@ -38,121 +36,34 @@ class BurgerMapApp extends StatelessWidget {
       theme: AppTheme.light,
       home: authControllerLoader == null
           ? _buildMapScreen()
-          : _AuthBootstrap(
-              loader: authControllerLoader!,
-              signedInBuilder: (context, signOut) =>
-                  _buildMapScreen(onSignOut: signOut),
+          : AuthGate(
+              controllerLoader: authControllerLoader!,
+              publicBuilder:
+                  (context, onSignIn, onSignOut, onSetNickname, onRetryAuth) =>
+                      _buildMapScreen(
+                        onSignIn: onSignIn,
+                        onSignOut: onSignOut,
+                        onSetNickname: onSetNickname,
+                        onRetryAuth: onRetryAuth,
+                      ),
             ),
     );
   }
 
-  Widget _buildMapScreen({Future<void> Function()? onSignOut}) => MapScreen(
+  Widget _buildMapScreen({
+    VoidCallback? onSignIn,
+    Future<void> Function()? onSignOut,
+    VoidCallback? onSetNickname,
+    VoidCallback? onRetryAuth,
+  }) => MapScreen(
     config: config,
     supabaseStoreLoader: supabaseStoreLoader,
     favoriteStoreIdsStore: favoriteStoreIdsStore,
     mapSurfaceBuilder: mapSurfaceBuilder,
+    onSignIn: onSignIn,
     onSignOut: onSignOut,
+    onSetNickname: onSetNickname,
+    onRetryAuth: onRetryAuth,
     menuRepository: menuRepository,
   );
-}
-
-class _AuthBootstrap extends StatefulWidget {
-  const _AuthBootstrap({required this.loader, required this.signedInBuilder});
-
-  final AuthControllerLoader loader;
-  final Widget Function(BuildContext, Future<void> Function()) signedInBuilder;
-
-  @override
-  State<_AuthBootstrap> createState() => _AuthBootstrapState();
-}
-
-class _AuthBootstrapState extends State<_AuthBootstrap> {
-  AuthController? _controller;
-  bool _loading = true;
-  bool _loadInProgress = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    if (_loadInProgress) return;
-    _loadInProgress = true;
-    if (!_loading) setState(() => _loading = true);
-    try {
-      final controller = await widget.loader();
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
-      setState(() {
-        _controller = controller;
-        _loading = false;
-      });
-    } on Object {
-      if (!mounted) return;
-      setState(() {
-        _controller = null;
-        _loading = false;
-      });
-    } finally {
-      _loadInProgress = false;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = _controller;
-    if (controller != null) {
-      return AuthGate(
-        controller: controller,
-        signedInBuilder: widget.signedInBuilder,
-      );
-    }
-    if (_loading) {
-      return Scaffold(
-        body: Center(
-          child: Semantics(
-            liveRegion: true,
-            label: '로그인 기능 준비 중',
-            child: const CircularProgressIndicator(),
-          ),
-        ),
-      );
-    }
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, size: 48),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '로그인 기능을 준비하지 못했습니다. 네트워크 연결을 확인해 주세요.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: _load,
-                      child: const Text('다시 시도'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
