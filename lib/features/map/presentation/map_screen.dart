@@ -61,6 +61,7 @@ const mapZoomInButtonKey = ValueKey<String>('map-zoom-in-button');
 const mapZoomOutButtonKey = ValueKey<String>('map-zoom-out-button');
 const currentLocationButtonKey = ValueKey<String>('current-location-button');
 const appInfoButtonKey = ValueKey<String>('app-info-button');
+const logoutButtonKey = ValueKey<String>('logout-button');
 const storeDataReadyStatusKey = ValueKey<String>('store-data-ready-status');
 const minimumMapZoom = 3.0;
 const maximumMapZoom = 20.0;
@@ -98,6 +99,7 @@ class MapScreen extends StatefulWidget {
     this.maximumCurrentLocationAge = const Duration(minutes: 2),
     this.currentLocationTimeout = const Duration(seconds: 10),
     this.mapCameraTimeout = const Duration(seconds: 10),
+    this.onSignOut,
   });
 
   final AppConfig config;
@@ -122,6 +124,7 @@ class MapScreen extends StatefulWidget {
   final Duration maximumCurrentLocationAge;
   final Duration currentLocationTimeout;
   final Duration mapCameraTimeout;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -339,6 +342,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          if (widget.onSignOut != null)
+            IconButton(
+              key: logoutButtonKey,
+              tooltip: '로그아웃',
+              icon: const Icon(Icons.logout),
+              onPressed: _confirmSignOut,
+            ),
           IconButton(
             key: appInfoButtonKey,
             tooltip: '정보·지원',
@@ -443,6 +453,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmSignOut() async {
+    final signOut = widget.onSignOut;
+    if (signOut == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('이 기기에서 로그아웃할까요? 즐겨찾기는 그대로 유지됩니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('로그아웃'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await signOut();
   }
 
   Widget _viewTab(bool list, Key key, String label, IconData icon) {
