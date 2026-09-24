@@ -28,6 +28,7 @@ void main() {
     await tester.tap(find.byKey(_loginKey));
     await tester.pumpAndSettle();
     expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byKey(authGoogleSignInButtonKey), findsNothing);
 
     await tester.enterText(find.byKey(authEmailFieldKey), 'not-an-email');
     await tester.tap(find.byKey(authEmailSubmitButtonKey));
@@ -69,6 +70,71 @@ void main() {
     pending.complete();
     await tester.pump();
     expect(find.textContaining('로그인 링크를 보냈습니다'), findsOneWidget);
+  });
+
+  testWidgets('configured Google login leads, while email remains available', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    final repository = _FakeAuthRepository()..googleCompleter = pending;
+    await tester.pumpWidget(_app(repository, googleEnabled: true));
+    await tester.pump();
+    await tester.tap(find.byKey(_loginKey));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(authGoogleSignInButtonKey), findsOneWidget);
+    expect(find.byKey(authEmailSubmitButtonKey), findsOneWidget);
+    expect(find.byType(OutlinedButton), findsOneWidget);
+    await tester.tap(find.byKey(authGoogleSignInButtonKey));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(authGoogleSignInButtonKey),
+      warnIfMissed: false,
+    );
+    expect(repository.googleCalls, 1);
+    expect(repository.sendCalls, 0);
+
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(repository.googleCalls, 1);
+    expect(find.byType(LoginScreen), findsNothing);
+  });
+
+  testWidgets('Google error can fall back to email', (tester) async {
+    final repository = _FakeAuthRepository()..failGoogle = true;
+    await tester.pumpWidget(_app(repository, googleEnabled: true));
+    await tester.pump();
+    await tester.tap(find.byKey(_loginKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(authGoogleSignInButtonKey));
+    await tester.pump();
+    expect(find.byKey(authMessageKey), findsOneWidget);
+    expect(find.byType(LoginScreen), findsOneWidget);
+
+    await tester.enterText(find.byKey(authEmailFieldKey), 'a@example.com');
+    await tester.tap(find.byKey(authEmailSubmitButtonKey));
+    await tester.pump();
+    expect(repository.sentEmails, ['a@example.com']);
+  });
+
+  testWidgets('native Google cancel leaves guest map accessible', (
+    tester,
+  ) async {
+    final repository = _FakeAuthRepository()..cancelGoogle = true;
+    await tester.pumpWidget(_app(repository, googleEnabled: true));
+    await tester.pump();
+    await tester.tap(find.byKey(_loginKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(authGoogleSignInButtonKey));
+    await tester.pump();
+    expect(find.byKey(authMessageKey), findsNothing);
+    expect(find.byType(LoginScreen), findsOneWidget);
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsNothing);
+    expect(find.byKey(_countKey), findsOneWidget);
   });
 
   testWidgets('restored session and logout keep the same public shell', (
@@ -200,26 +266,29 @@ void main() {
   });
 }
 
-Widget _app(_FakeAuthRepository repository, {double textScale = 1}) =>
-    MaterialApp(
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(
-          context,
-        ).copyWith(textScaler: TextScaler.linear(textScale)),
-        child: child!,
-      ),
-      home: AuthGate(
-        controllerLoader: () async => AuthController(repository),
-        publicBuilder:
-            (context, onSignIn, onSignOut, onSetNickname, onRetryAuth) =>
-                _PublicShell(
-                  onSignIn: onSignIn,
-                  onSignOut: onSignOut,
-                  onSetNickname: onSetNickname,
-                  onRetryAuth: onRetryAuth,
-                ),
-      ),
-    );
+Widget _app(
+  _FakeAuthRepository repository, {
+  double textScale = 1,
+  bool googleEnabled = false,
+}) => MaterialApp(
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(
+      context,
+    ).copyWith(textScaler: TextScaler.linear(textScale)),
+    child: child!,
+  ),
+  home: AuthGate(
+    controllerLoader: () async =>
+        AuthController(repository, googleSignInEnabled: googleEnabled),
+    publicBuilder: (context, onSignIn, onSignOut, onSetNickname, onRetryAuth) =>
+        _PublicShell(
+          onSignIn: onSignIn,
+          onSignOut: onSignOut,
+          onSetNickname: onSetNickname,
+          onRetryAuth: onRetryAuth,
+        ),
+  ),
+);
 
 class _PublicShell extends StatefulWidget {
   const _PublicShell({
@@ -287,6 +356,10 @@ class _FakeAuthRepository implements AuthRepository {
   bool failProfileRead = false;
   bool failMagicLink = false;
   Completer<void>? sendCompleter;
+  Completer<void>? googleCompleter;
+  bool failGoogle = false;
+  bool cancelGoogle = false;
+  int googleCalls = 0;
   Completer<AuthUserProfile>? createCompleter;
   int sendCalls = 0;
   int createCalls = 0;
@@ -332,6 +405,20 @@ class _FakeAuthRepository implements AuthRepository {
     }
     final pending = sendCompleter;
     if (pending != null) await pending.future;
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    googleCalls++;
+    if (failGoogle) {
+      throw const AuthFlowException(AuthFailureKind.authentication);
+    }
+    if (cancelGoogle) {
+      throw const AuthFlowException(AuthFailureKind.canceled);
+    }
+    final pending = googleCompleter;
+    if (pending != null) await pending.future;
+    emitUser('user-a');
   }
 
   @override

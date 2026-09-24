@@ -98,5 +98,8 @@ class _IdleAuthRepository implements AuthRepository {
   Future<void> sendMagicLink(String email) => throw UnimplementedError();
 
   @override
+  Future<void> signInWithGoogle() => throw UnimplementedError();
+
+  @override
   Future<void> signOut() => throw UnimplementedError();
 }

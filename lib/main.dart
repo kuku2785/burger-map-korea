@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -54,8 +55,22 @@ void main() {
         )
       : null;
   final authControllerLoader = config.hasSupabaseConfiguration
-      ? () async =>
-            AuthController(SupabaseAuthRepository(await loadSupabaseClient()))
+      ? () async {
+          const googleServerClientId = String.fromEnvironment(
+            'GOOGLE_WEB_CLIENT_ID',
+          );
+          return AuthController(
+            SupabaseAuthRepository(
+              await loadSupabaseClient(),
+              googleServerClientId: googleServerClientId,
+            ),
+            googleSignInEnabled:
+                const bool.fromEnvironment('GOOGLE_SIGN_IN_ENABLED') &&
+                googleServerClientId.isNotEmpty &&
+                !kIsWeb &&
+                defaultTargetPlatform == TargetPlatform.android,
+          );
+        }
       : null;
   final menuRepository =
       config.usesSupabaseStoreData && config.hasSupabaseConfiguration

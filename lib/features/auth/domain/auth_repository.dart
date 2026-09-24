@@ -5,7 +5,14 @@ class AuthUserProfile {
   final String nickname;
 }
 
-enum AuthFailureKind { network, invalidInput, authentication, profile, unknown }
+enum AuthFailureKind {
+  network,
+  invalidInput,
+  authentication,
+  canceled,
+  profile,
+  unknown,
+}
 
 class AuthFlowException implements Exception {
   const AuthFlowException(this.kind);
@@ -19,6 +26,8 @@ abstract interface class AuthRepository {
   Stream<String?> get userChanges;
 
   Future<void> sendMagicLink(String email);
+
+  Future<void> signInWithGoogle();
 
   Future<AuthUserProfile?> fetchCurrentProfile();
 

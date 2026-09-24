@@ -64,6 +64,110 @@ void main() {
     await repository.close();
   });
 
+  test('Google sign-in is gated and confirms a session', () async {
+    final repository = FakeAuthRepository();
+    final disabled = AuthController(repository)..initialize();
+    await disabled.signInWithGoogle();
+    expect(repository.googleCalls, 0);
+    disabled.dispose();
+
+    final pending = Completer<void>();
+    repository.googleCompleter = pending;
+    final controller = AuthController(repository, googleSignInEnabled: true)
+      ..initialize();
+    final launch = controller.signInWithGoogle();
+    await controller.signInWithGoogle();
+    await controller.sendMagicLink('user@example.com');
+    expect(repository.googleCalls, 1);
+    expect(repository.sendCalls, 0);
+    expect(controller.signingInWithGoogle, isTrue);
+
+    pending.complete();
+    await launch;
+    expect(controller.state, AuthGateState.signedOut);
+    expect(controller.hasSession, isFalse);
+    expect(controller.message, isNotNull);
+
+    repository.emitUser('user-a');
+    await pumpEventQueue();
+    expect(controller.state, AuthGateState.signedInNeedsProfile);
+    controller.dispose();
+    await repository.close();
+  });
+
+  test('Google failure leaves email login available', () async {
+    final repository = FakeAuthRepository()
+      ..googleError = const AuthFlowException(AuthFailureKind.authentication);
+    final controller = AuthController(repository, googleSignInEnabled: true)
+      ..initialize();
+
+    await controller.signInWithGoogle();
+    expect(controller.signingInWithGoogle, isFalse);
+    expect(controller.state, AuthGateState.signedOut);
+    expect(controller.message, isNotNull);
+
+    await controller.sendMagicLink('user@example.com');
+    expect(repository.sentEmails, ['user@example.com']);
+    expect(controller.magicLinkSent, isTrue);
+    controller.dispose();
+    await repository.close();
+  });
+
+  test(
+    'auth stream during native Google sign-in keeps signed-in state',
+    () async {
+      final pending = Completer<void>();
+      final repository = FakeAuthRepository()..googleCompleter = pending;
+      final controller = AuthController(repository, googleSignInEnabled: true)
+        ..initialize();
+      final launch = controller.signInWithGoogle();
+
+      repository.emitUser('user-a');
+      await pumpEventQueue();
+      pending.complete();
+      await launch;
+
+      expect(controller.state, AuthGateState.signedInNeedsProfile);
+      expect(controller.message, isNull);
+      controller.dispose();
+      await repository.close();
+    },
+  );
+
+  test('late native Google completion after dispose is ignored', () async {
+    final pending = Completer<void>();
+    final repository = FakeAuthRepository()..googleCompleter = pending;
+    final controller = AuthController(repository, googleSignInEnabled: true)
+      ..initialize();
+    final launch = controller.signInWithGoogle();
+    controller.dispose();
+
+    pending.complete();
+    await launch;
+    expect(controller.message, isNull);
+    await repository.close();
+  });
+
+  test(
+    'Google account picker cancellation keeps guest and permits retry',
+    () async {
+      final repository = FakeAuthRepository()
+        ..googleError = const AuthFlowException(AuthFailureKind.canceled);
+      final controller = AuthController(repository, googleSignInEnabled: true)
+        ..initialize();
+      await controller.signInWithGoogle();
+      expect(controller.state, AuthGateState.signedOut);
+      expect(controller.message, isNull);
+      repository.googleError = null;
+      repository.googleSuccessUserId = 'user-a';
+      await controller.signInWithGoogle();
+      expect(controller.hasSession, isTrue);
+      expect(controller.state, AuthGateState.signedInNeedsProfile);
+      controller.dispose();
+      await repository.close();
+    },
+  );
+
   test('restored session without profile requires onboarding', () async {
     final repository = FakeAuthRepository(userId: 'user-a');
     final controller = AuthController(repository)..initialize();
@@ -264,6 +368,10 @@ class FakeAuthRepository implements AuthRepository {
   Object? createError;
   Completer<AuthUserProfile?>? fetchCompleter;
   Completer<void>? sendCompleter;
+  Completer<void>? googleCompleter;
+  Object? googleError;
+  String? googleSuccessUserId;
+  int googleCalls = 0;
   int profileReads = 0;
   int signOutCalls = 0;
   int sendCalls = 0;
@@ -281,6 +389,8 @@ class FakeAuthRepository implements AuthRepository {
     userId = value;
     _changes.add(value);
   }
+
+  void emitError() => _changes.addError(StateError('private auth error'));
 
   @override
   Future<AuthUserProfile?> fetchCurrentProfile() async {
@@ -306,6 +416,17 @@ class FakeAuthRepository implements AuthRepository {
     sentEmails.add(email);
     final pending = sendCompleter;
     if (pending != null) await pending.future;
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    googleCalls++;
+    final error = googleError;
+    if (error != null) throw error;
+    final pending = googleCompleter;
+    if (pending != null) await pending.future;
+    final successUserId = googleSuccessUserId;
+    if (successUserId != null) emitUser(successUserId);
   }
 
   @override

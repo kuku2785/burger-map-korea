@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/auth_repository.dart';
+import 'native_google_token_provider.dart';
 
 const supabaseProfileSelectColumns = 'id,nickname';
 const burgerMapAuthRedirectUrl = 'com.burgermapkorea.app://login-callback/';
@@ -13,9 +15,16 @@ Map<String, Object> buildProfileInsertPayload({
 }) => <String, Object>{'id': userId, 'nickname': nickname};
 
 class SupabaseAuthRepository implements AuthRepository {
-  SupabaseAuthRepository(this._client);
+  SupabaseAuthRepository(
+    this._client, {
+    required this.googleServerClientId,
+    GoogleTokenLoader? googleTokenLoader,
+  }) : _googleTokenLoader =
+           googleTokenLoader ?? NativeGoogleTokenProvider().authenticate;
 
   final SupabaseClient _client;
+  final String googleServerClientId;
+  final GoogleTokenLoader _googleTokenLoader;
 
   @override
   String? get currentUserId => _client.auth.currentUser?.id;
@@ -36,6 +45,38 @@ class SupabaseAuthRepository implements AuthRepository {
       throw const AuthFlowException(AuthFailureKind.network);
     } on AuthException {
       throw const AuthFlowException(AuthFailureKind.authentication);
+    } on Object {
+      throw const AuthFlowException(AuthFailureKind.unknown);
+    }
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    try {
+      final tokens = await _googleTokenLoader(googleServerClientId);
+      if (tokens.idToken.isEmpty || tokens.accessToken.isEmpty) {
+        throw const AuthFlowException(AuthFailureKind.authentication);
+      }
+      final result = await _client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: tokens.idToken,
+        accessToken: tokens.accessToken,
+      );
+      if (result.session == null || _client.auth.currentSession == null) {
+        throw const AuthFlowException(AuthFailureKind.authentication);
+      }
+    } on GoogleSignInException catch (error) {
+      throw AuthFlowException(
+        error.code == GoogleSignInExceptionCode.canceled
+            ? AuthFailureKind.canceled
+            : AuthFailureKind.authentication,
+      );
+    } on AuthRetryableFetchException {
+      throw const AuthFlowException(AuthFailureKind.network);
+    } on AuthException {
+      throw const AuthFlowException(AuthFailureKind.authentication);
+    } on AuthFlowException {
+      rethrow;
     } on Object {
       throw const AuthFlowException(AuthFailureKind.unknown);
     }

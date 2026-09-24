@@ -35,9 +35,10 @@ bool isValidEmail(String value) =>
     RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim());
 
 class AuthController extends ChangeNotifier {
-  AuthController(this._repository);
+  AuthController(this._repository, {this.googleSignInEnabled = false});
 
   final AuthRepository _repository;
+  final bool googleSignInEnabled;
   AuthGateState _state = AuthGateState.initializing;
   AuthUserProfile? _profile;
   StreamSubscription<String?>? _subscription;
@@ -47,6 +48,7 @@ class AuthController extends ChangeNotifier {
   bool _initialized = false;
   bool _disposed = false;
   bool _sendingMagicLink = false;
+  bool _signingInWithGoogle = false;
   bool _submittingNickname = false;
   bool _signingOut = false;
   bool _magicLinkSent = false;
@@ -56,6 +58,7 @@ class AuthController extends ChangeNotifier {
   bool get hasSession => _repository.currentUserId != null;
   AuthUserProfile? get profile => _profile;
   bool get sendingMagicLink => _sendingMagicLink;
+  bool get signingInWithGoogle => _signingInWithGoogle;
   bool get submittingNickname => _submittingNickname;
   bool get signingOut => _signingOut;
   bool get magicLinkSent => _magicLinkSent;
@@ -74,7 +77,7 @@ class AuthController extends ChangeNotifier {
   Future<void> retry() => _resolveUser(_repository.currentUserId);
 
   Future<void> sendMagicLink(String email) async {
-    if (_sendingMagicLink || _disposed) return;
+    if (_sendingMagicLink || _signingInWithGoogle || _disposed) return;
     final normalized = email.trim().toLowerCase();
     if (!isValidEmail(normalized)) {
       _message = '올바른 이메일 주소를 입력해 주세요.';
@@ -101,6 +104,42 @@ class AuthController extends ChangeNotifier {
     } finally {
       if (!_disposed) {
         _sendingMagicLink = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    if (!googleSignInEnabled ||
+        _signingInWithGoogle ||
+        _sendingMagicLink ||
+        _repository.currentUserId != null ||
+        _disposed) {
+      return;
+    }
+    _signingInWithGoogle = true;
+    _magicLinkSent = false;
+    _message = null;
+    _notify();
+    try {
+      await _repository.signInWithGoogle();
+      if (_disposed) return;
+      final userId = _repository.currentUserId;
+      if (userId == null) {
+        throw const AuthFlowException(AuthFailureKind.authentication);
+      }
+      await _resolveUser(userId);
+    } on AuthFlowException catch (error) {
+      if (_disposed) return;
+      if (error.kind != AuthFailureKind.canceled) {
+        _message = _messageFor(error.kind, operation: 'login');
+      }
+    } on Object {
+      if (_disposed) return;
+      _message = _messageFor(AuthFailureKind.unknown, operation: 'login');
+    } finally {
+      if (!_disposed) {
+        _signingInWithGoogle = false;
         _notify();
       }
     }
@@ -194,6 +233,7 @@ class AuthController extends ChangeNotifier {
     ++_generation;
     _state = AuthGateState.error;
     _profile = null;
+    _magicLinkSent = false;
     _message = '로그인 상태를 확인하지 못했습니다. 다시 시도해 주세요.';
     _notify();
   }

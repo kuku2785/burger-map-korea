@@ -4,6 +4,7 @@ import '../application/auth_controller.dart';
 
 const authEmailFieldKey = ValueKey<String>('auth-email-field');
 const authEmailSubmitButtonKey = ValueKey<String>('auth-email-submit');
+const authGoogleSignInButtonKey = ValueKey<String>('auth-google-sign-in');
 const authMessageKey = ValueKey<String>('auth-message');
 
 class LoginScreen extends StatefulWidget {
@@ -59,15 +60,43 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      '이메일로 받은 로그인 링크를 열면 앱으로 돌아옵니다.',
+                    Text(
+                      widget.controller.googleSignInEnabled
+                          ? 'Google 계정으로 로그인하거나 이메일 링크를 이용하세요.'
+                          : '이메일로 받은 로그인 링크를 열면 앱으로 돌아옵니다.',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
+                    if (widget.controller.googleSignInEnabled) ...[
+                      SizedBox(
+                        height: 52,
+                        child: FilledButton(
+                          key: authGoogleSignInButtonKey,
+                          onPressed:
+                              widget.controller.signingInWithGoogle ||
+                                  widget.controller.sendingMagicLink
+                              ? null
+                              : widget.controller.signInWithGoogle,
+                          child: widget.controller.signingInWithGoogle
+                              ? const SizedBox.square(
+                                  dimension: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : const Text('Google로 계속하기'),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Center(child: Text('또는 이메일로 로그인')),
+                      const SizedBox(height: 16),
+                    ],
                     TextField(
                       key: authEmailFieldKey,
                       controller: _emailController,
-                      enabled: !widget.controller.sendingMagicLink,
+                      enabled:
+                          !widget.controller.sendingMagicLink &&
+                          !widget.controller.signingInWithGoogle,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
                       autocorrect: false,
@@ -77,33 +106,40 @@ class _LoginScreenState extends State<LoginScreen> {
                         hintText: 'name@example.com',
                         border: OutlineInputBorder(),
                       ),
-                      onSubmitted: widget.controller.sendingMagicLink
+                      onSubmitted:
+                          widget.controller.sendingMagicLink ||
+                              widget.controller.signingInWithGoogle
                           ? null
                           : (_) => _submit(),
                     ),
                     const SizedBox(height: 16),
                     Semantics(
                       button: true,
-                      enabled: !widget.controller.sendingMagicLink,
+                      enabled:
+                          !widget.controller.sendingMagicLink &&
+                          !widget.controller.signingInWithGoogle,
                       label: widget.controller.sendingMagicLink
                           ? '로그인 링크 전송 중'
                           : '이메일로 로그인 링크 받기',
                       child: SizedBox(
                         height: 52,
-                        child: FilledButton(
-                          key: authEmailSubmitButtonKey,
-                          onPressed: widget.controller.sendingMagicLink
-                              ? null
-                              : _submit,
-                          child: widget.controller.sendingMagicLink
-                              ? const SizedBox.square(
-                                  dimension: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                )
-                              : const Text('로그인 링크 받기'),
-                        ),
+                        child: widget.controller.googleSignInEnabled
+                            ? OutlinedButton(
+                                key: authEmailSubmitButtonKey,
+                                onPressed:
+                                    widget.controller.sendingMagicLink ||
+                                        widget.controller.signingInWithGoogle
+                                    ? null
+                                    : _submit,
+                                child: _emailButtonChild(),
+                              )
+                            : FilledButton(
+                                key: authEmailSubmitButtonKey,
+                                onPressed: widget.controller.sendingMagicLink
+                                    ? null
+                                    : _submit,
+                                child: _emailButtonChild(),
+                              ),
                       ),
                     ),
                     if (widget.controller.message != null) ...[
@@ -136,4 +172,11 @@ class _LoginScreenState extends State<LoginScreen> {
     FocusScope.of(context).unfocus();
     widget.controller.sendMagicLink(_emailController.text);
   }
+
+  Widget _emailButtonChild() => widget.controller.sendingMagicLink
+      ? const SizedBox.square(
+          dimension: 24,
+          child: CircularProgressIndicator(strokeWidth: 2.5),
+        )
+      : const Text('로그인 링크 받기');
 }
