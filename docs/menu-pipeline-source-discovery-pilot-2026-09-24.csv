@@ -1,0 +1,6 @@
+﻿store_id,store_name,source_url,source_domain,source_type,title,discovered_at,discovery_query,candidate_score,source_tier,source_store_match,access_status
+4632fe97-56f9-4aac-8f28-b9c916fa925d,더백테라스 신용산점,https://www.shuttledelivery.co.kr/ko/restaurant/menu/1020,www.shuttledelivery.co.kr,delivery_platform,더백테라스 신용산점 Shuttle 주문 페이지,2026-09-24T08:35:46Z,더백테라스 신용산점 메뉴,1,B,EXACT_MATCH,OBSERVED
+3ae148d2-a483-4268-9655-70ecbcb36d9d,PPS,https://www.daangn.com/kr/local-profile/pps-%ED%94%BC%ED%94%BC%EC%97%90%EC%8A%A4-aaask55ajnq3/,www.daangn.com,business_profile,PPS 비즈니스 프로필,2026-09-24T08:35:46Z,PPS 한강대로50길 24 메뉴,1,B,EXACT_MATCH,BLOCKED_SOURCE
+45ea2502-223c-45b3-9bc1-ca2465faa354,노스트레스버거,https://www.daangn.com/kr/local-profile/%EB%85%B8%EC%8A%A4%ED%8A%B8%EB%A0%88%EC%8A%A4%EB%B2%84%EA%B1%B0-sq9ttm4vov5h/,www.daangn.com,business_profile,노스트레스버거 비즈니스 프로필,2026-09-24T08:35:46Z,노스트레스버거 메뉴,1,B,EXACT_MATCH,BLOCKED_SOURCE
+d81b00f3-a142-42ad-b676-225122a5abb7,N버거,https://www.nseoultower.co.kr/media/news/view.asp?idx=72,www.nseoultower.co.kr,official_brand_page,N서울타워 N버거 소개 자료,2026-09-24T08:35:46Z,N버거 공식 메뉴,1,A,EXACT_MATCH,OBSERVED
+8bd06746-55ac-4cda-8621-6adf0f8dc312,더백푸드트럭 해방촌점,https://www.shuttledelivery.co.kr/ko/restaurant/menu/1020,www.shuttledelivery.co.kr,delivery_platform,더백테라스 신용산점 Shuttle 주문 페이지,2026-09-24T08:35:46Z,더백푸드트럭 해방촌점 메뉴,0,B,MISMATCH,OBSERVED

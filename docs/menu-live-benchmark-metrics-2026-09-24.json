@@ -1,0 +1,22 @@
+{
+  "total_stores": 24,
+  "stores_with_any_source": 24,
+  "stores_with_tier_a": 2,
+  "stores_with_tier_b": 4,
+  "stores_with_exact_match": 19,
+  "stores_with_menu_extraction": 16,
+  "stores_with_price_extraction": 12,
+  "stores_with_signature_extraction": 3,
+  "blocked_source_count": 0,
+  "ambiguous_identity_count": 2,
+  "no_source_stores": 0,
+  "searches_executed": 84,
+  "stores_exceeding_search_cap": 2,
+  "searches_per_store_mean": 3.5,
+  "searches_per_store_median": 3.0,
+  "automation_classes": {
+    "HUMAN_REVIEW_REQUIRED": 17,
+    "INSUFFICIENT_EVIDENCE": 6,
+    "PARTIALLY_AUTOMATABLE": 1
+  }
+}

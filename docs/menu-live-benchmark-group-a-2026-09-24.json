@@ -1,0 +1,425 @@
+{
+  "stores": [
+    {
+      "store_id": "07ec2d49-9064-4814-9c37-2afa82e43836",
+      "store_name": "롸카두들 이태원점",
+      "address": "서울 용산구 녹사평대로40나길 9",
+      "burger_style": "chicken",
+      "stratum": "chain_manual_review",
+      "searches": [
+        "롸카두들 이태원점 녹사평대로40나길 9 메뉴 공식",
+        "롸카두들 이태원 녹사평대로40나길9 테이블링",
+        "롸카두들 공식 홈페이지 메뉴 이태원 성수 포스코센터"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=KYu0m4YwDrEj",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "롸카두들 이태원 녹사평대로40나길9 테이블링",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows branch and exact road address at lines 94-98 and site menu at lines 140-172. Menu update date and dine-in price context absent; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "더 클래식",
+              "displayed_price": "11,800 원",
+              "price_krw": 11800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "치즈킨",
+              "displayed_price": "12,800 원",
+              "price_krw": 12800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "2e922474-8309-5ca4-96e4-54b3c2706c54",
+      "store_name": "롸카두들 내쉬빌 핫치킨 성수점",
+      "address": "서울 성동구 성수일로4길 25",
+      "burger_style": "chicken",
+      "stratum": "chain_manual_review",
+      "searches": [
+        "롸카두들 내쉬빌 핫치킨 성수점 성수일로4길 25 메뉴",
+        "롸카두들 공식 홈페이지 메뉴 이태원 성수 포스코센터"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=mIgdpi5zESzI",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "롸카두들 내쉬빌 핫치킨 성수점 성수일로4길 25 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows exact road address at lines 94-98 and menu at lines 138-170. Menu update date and price channel absent; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "클래식",
+              "displayed_price": "11,800 원",
+              "price_krw": 11800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "포포",
+              "displayed_price": "12,800 원",
+              "price_krw": 12800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        },
+        {
+          "source_url": "https://www.tabling.co.kr/place/677cd05c66de5f069885ed18",
+          "source_type": "reservation_platform",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "롸카두들 내쉬빌 핫치킨 성수점 성수일로4길 25 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index showed name, address and menu, but web open returned an internal tool error. This is not an origin HTTP status. No menu extracted from this source.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "71052d2c-a483-4268-9655-70ecbcb36d9d",
+      "store_name": "롸카두들포스코센터",
+      "address": "서울 강남구 테헤란로 440",
+      "burger_style": "chicken",
+      "stratum": "chain_mixed",
+      "searches": [
+        "롸카두들포스코센터 테헤란로 440 메뉴 공식",
+        "\"롸카두들\" \"포스코센터\" 메뉴",
+        "롸카두들 공식 홈페이지 메뉴 이태원 성수 포스코센터"
+      ],
+      "sources": [
+        {
+          "source_url": "https://polle.com/place/14nNTX/%EB%A1%B8%EC%B9%B4%EB%91%90%EB%93%A4%20%EB%82%B4%EC%89%AC%EB%B9%8C%20%ED%95%AB%EC%B9%98%ED%82%A8",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"롸카두들\" \"포스코센터\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows 포스코센터 and 테헤란로 440 at lines 8-18; menu at lines 55-67. Recent review is separate from undated menu list; price currency/context not stated in list. C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "더 클래식",
+              "displayed_price": "11,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "그랜파",
+              "displayed_price": "11,500",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        },
+        {
+          "source_url": "https://www.tabling.co.kr/place/69365b127dadbfe8d3e98d42",
+          "source_type": "reservation_platform",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "\"롸카두들\" \"포스코센터\" 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index supplied branch name; web open returned internal tool error. Address/menu could not be inspected on origin page; no HTTP status inferred.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "ac3f7c80-2fb6-4eb8-8dcc-0291fce3b2a8",
+      "store_name": "브루클린더버거조인트 가로수길점",
+      "address": "서울 강남구 도산대로15길 12",
+      "burger_style": "classic",
+      "stratum": "chain_mixed",
+      "searches": [
+        "브루클린더버거조인트 가로수길점 도산대로15길 12 메뉴",
+        "\"브루클린더버거조인트 가로수길점\" 메뉴",
+        "캘프 버거 공식 홈페이지 옥수 효창 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.tabling.co.kr/restaurant/12764",
+          "source_type": "reservation_platform",
+          "source_tier": "B",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"브루클린더버거조인트 가로수길점\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened Tabling restaurant page has table-order label (line 23), exact branch/address (lines 13-15, 66-70), and two set items/prices (lines 80-99). Opened crawl was four months old and menu revision date absent. Price is table-order channel and may differ from single burger/dine-in menu; no official signature claim.",
+          "candidates": [
+            {
+              "menu_name": "SET_브루클린 웍스 140g",
+              "displayed_price": "12,500 원",
+              "price_krw": 12500,
+              "price_context": "order_channel",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "SET_브루클린 웍스 200g",
+              "displayed_price": "15,500 원",
+              "price_krw": 15500,
+              "price_context": "order_channel",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "01bac721-7751-50b3-8f88-22e239802b07",
+      "store_name": "캘프 옥수",
+      "address": "서울 성동구 한림말3길 10",
+      "burger_style": "unclassified",
+      "stratum": "other_manual_review",
+      "searches": [
+        "캘프 옥수 한림말3길 10 메뉴 주문",
+        "site:tabling.co.kr/place/ \"캘프 옥수\"",
+        "캘프 버거 공식 홈페이지 옥수 효창 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://polle.com/place/1wQ2wW/%EC%BA%98%ED%94%84",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "캘프 옥수 한림말3길 10 메뉴 주문",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows exact address (line 131) and undated menu (lines 71-81). Prices are bare numerals without currency or channel context; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "트러플 머쉬룸버거",
+              "displayed_price": "9,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "스파이시 쉬림프버거",
+              "displayed_price": "9,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        },
+        {
+          "source_url": "https://www.tabling.co.kr/place/677cd09566de5f06988656b8",
+          "source_type": "reservation_platform",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "site:tabling.co.kr/place/ \"캘프 옥수\"",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index showed exact address/menu; web open returned internal tool error. No origin HTTP status or menu extraction claimed.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "025c3cf8-885d-426c-b2a5-deb4180e8f3d",
+      "store_name": "캘프 효창",
+      "address": "서울 용산구 백범로 326-1",
+      "burger_style": "classic",
+      "stratum": "other_manual_review",
+      "searches": [
+        "캘프 효창 백범로 326-1 메뉴 주문",
+        "\"캘프 효창\" \"백범로 326-1\" 메뉴",
+        "site:tabling.co.kr/place/ \"캘프 효창\"",
+        "캘프 버거 공식 홈페이지 옥수 효창 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://polle.com/place/37WeR5/%EC%BA%98%ED%94%84",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "LOW",
+          "query_used": "\"캘프 효창\" \"백범로 326-1\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows exact address at line 98 and undated menu at lines 61-79; opened crawl was 11 months old and differs from newer search index (which included 페퍼잭). Search snippet was not extracted. Bare numeric prices have no currency/channel context; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "치즈 버거",
+              "displayed_price": "8,300",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "트러플 머쉬룸 버거",
+              "displayed_price": "10,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "0a24b8ba-ab60-4b1c-8cb9-7bd507a02c4c",
+      "store_name": "조아버거",
+      "address": "서울 성북구 오패산로4길 58",
+      "burger_style": "classic",
+      "stratum": "other_manual_review",
+      "searches": [
+        "조아버거 오패산로4길 58 메뉴",
+        "\"조아버거\" \"오패산로4길 58\"",
+        "조아버거 서울 성북구 오패산로4길 58 메뉴 가격",
+        "조아버거 성북 메뉴",
+        "조아버거 오패산로",
+        "조아버거 테이블링",
+        "site:diningcode.com/profile.php 조아버거 월곡",
+        "site:polle.com/place 조아버거 월곡"
+      ],
+      "additional_searches_after_cap": [
+        "site:tabling.co.kr 조아버거 월곡",
+        "조아버거 월곡점 서울특별시 성북구 오패산로4길 58 메뉴 가격",
+        "조아버거 월곡 버거 가격 전화",
+        "조아버거 월곡점 네이버 플레이스",
+        "조아버거 성북구 오패산로4길58 인스타그램"
+      ],
+      "sources": [
+        {
+          "source_url": "https://restaurantguru.com/%EC%A1%B0%EC%95%84%EB%B2%84%EA%B1%B0-Seoul",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "조아버거 성북 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index suggests a 조아버거 in Seoul/Wolgok, but no exact address in snippet. Web open returned cache-miss tool error, not an origin HTTP status. No candidate extracted. Query cap was exceeded during exploratory search; all extra queries are recorded separately.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "6ead59be-261a-59d4-ae81-879f5b9bdf17",
+      "store_name": "스마일햄버거",
+      "address": "서울 강북구 도봉로95길 48",
+      "burger_style": "classic",
+      "stratum": "other_manual_review",
+      "searches": [
+        "스마일햄버거 도봉로95길 48 메뉴",
+        "\"스마일햄버거\" \"도봉로95길 48\" 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=3gjw0uGrIl8H",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"스마일햄버거\" \"도봉로95길 48\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page menu정보 shows item/price at lines 125-131; opened embedded review identifies 도봉로95길 48 2호 at line 328. Directory menu revision date and dine-in context absent; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "스마일 햄버거",
+              "displayed_price": "4,000 원",
+              "price_krw": 4000,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "7a60fb45-613f-5ae8-8831-8e0d0a3f95e1",
+      "store_name": "노스트레스버거 마포",
+      "address": "서울 마포구 숭문길 10",
+      "burger_style": "unclassified",
+      "stratum": "other_manual_review",
+      "searches": [
+        "\"노스트레스버거 마포\" \"숭문길 10\" 메뉴",
+        "노스트레스버거 마포 숭문길10 메뉴 테이블링",
+        "노스트레스버거 공식 메뉴 마포",
+        "\"노스트레스버거\" \"숭문길 10\" 버거 가격",
+        "\"노스트레스버거 마포\" 버거 메뉴 가격",
+        "\"노스트레스버거 마포\" site:polle.com",
+        "\"노스트레스버거 마포\" site:tabling.co.kr"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.albamon.com/jobs/detail/119044956?logpath=7&sc=524",
+          "source_type": "unknown",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "\"노스트레스버거\" \"숭문길 10\" 버거 가격",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search snippet of employer listing dated 2026-09-07 identifies business and 숭문길 10, but page open returned cache-miss tool error. Discovery of location only; no menu or origin HTTP status. Other search hits were for different Yongsan branches and were not used.",
+          "candidates": []
+        }
+      ]
+    }
+  ]
+}

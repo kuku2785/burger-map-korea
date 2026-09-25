@@ -1,0 +1,1033 @@
+{
+  "benchmark_date": "2026-09-24",
+  "project_ref": "eoiwfprghyyguthdtayx",
+  "sample_note": "24 currently verified+active public stores in accessible burger-map-korea-dev project; fresh web search observations; not a production write",
+  "stores": [
+    {
+      "store_id": "4632fe97-56f9-4aac-8f28-b9c916fa925d",
+      "store_name": "더백테라스 신용산점",
+      "address": "서울 용산구 한강대로40길 26",
+      "district": "용산구",
+      "burger_style": "classic",
+      "stratum": "pinned_prior_pilot; manual_review; order_platform",
+      "searches": [
+        "더백테라스 신용산점 공식 메뉴 가격",
+        "\"더백테라스\" \"신용산\"",
+        "\"더백테라스\" burger Seoul menu"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.shuttledelivery.co.kr/ko/restaurant/menu/1020",
+          "source_type": "delivery_platform",
+          "source_tier": "B",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "http_status": null,
+          "currentness": "MEDIUM",
+          "observed_at": null,
+          "retrieved_at": "2026-09-24T09:46:45Z",
+          "query_used": "더백테라스 신용산점 공식 메뉴 가격",
+          "notes": "열린 주문 페이지의 매장명과 한강대로40길 26 주소 일치. 영업 일정과 배송/포장 가격은 보이나 버거 상품 제목이 본문 추출에서 공백이므로 이름-가격 쌍 추출 실패. 웹 도구는 origin HTTP status를 제공하지 않음.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "3ae148d2-a483-4268-9655-70ecbcb36d9d",
+      "store_name": "PPS",
+      "address": "서울 용산구 한강대로50길 24",
+      "district": "용산구",
+      "burger_style": "smash",
+      "stratum": "pinned_prior_pilot; manual_review; business_profile",
+      "searches": [
+        "PPS 버거 서울 공식 메뉴 가격"
+      ],
+      "sources": [
+        {
+          "source_url": "https://gajaseoul.com/ko/store/pps_sinyongsan",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "http_status": null,
+          "currentness": "UNKNOWN",
+          "observed_at": null,
+          "retrieved_at": null,
+          "query_used": "PPS 버거 서울 공식 메뉴 가격",
+          "notes": "검색 결과는 PPS 신용산/한강대로50길 24를 가리키나 페이지 열기는 도구 Internal Error. 원문 추출이나 HTTP 403 판정 불가.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "45ea2502-223c-45b3-9bc1-ca2465faa354",
+      "store_name": "노스트레스버거",
+      "address": "서울 용산구 신흥로 62",
+      "district": "용산구",
+      "burger_style": "unclassified",
+      "stratum": "pinned_prior_pilot; mixed; editorial_only",
+      "searches": [
+        "노스트레스버거 공식 메뉴 가격 서울",
+        "\"노스트레스버거\" 서울 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://delistationkorea.com/noksapyeong-cheeseburger-nostress-burger/",
+          "source_type": "blog",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "http_status": null,
+          "currentness": "UNKNOWN",
+          "observed_at": null,
+          "retrieved_at": null,
+          "query_used": "노스트레스버거 공식 메뉴 가격 서울",
+          "notes": "최근 검색 색인에 매장/메뉴 언급이 있으나 페이지 열기는 도구 Internal Error. 스니펫을 메뉴 원문으로 사용하지 않음.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "d81b00f3-a142-42ad-b676-225122a5abb7",
+      "store_name": "N버거",
+      "address": "서울 용산구 남산공원길 105",
+      "district": "용산구",
+      "burger_style": "other",
+      "stratum": "pinned_prior_pilot; manual_review; official_brand",
+      "searches": [
+        "N버거 서울 공식 메뉴 가격 버거",
+        "N버거 남산 서울타워 메뉴 가격 2026",
+        "N버거 N서울타워 공식"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.nseoultower.co.kr/media/news/view.asp?idx=72",
+          "source_type": "official_brand_page",
+          "source_tier": "A",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "http_status": null,
+          "currentness": "MEDIUM",
+          "observed_at": "2026-05-20",
+          "retrieved_at": "2026-09-24T09:46:45Z",
+          "query_used": "N버거 남산 서울타워 메뉴 가격 2026",
+          "notes": "N서울타워 운영사 공식 보도자료. 2026-05-20 게시; 현재 상시 메뉴 페이지는 아니므로 판매 지속은 미확인. 가격 없음.",
+          "candidates": [
+            {
+              "menu_name": "서울 불고기 버거",
+              "displayed_price": "",
+              "price_krw": null,
+              "price_context": "unknown",
+              "signature_wording": "대표 메뉴; 시그니처 메뉴",
+              "extraction_method": "opened_html_text",
+              "evidence_grade": "A3",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "8bd06746-55ac-4cda-8621-6adf0f8dc312",
+      "store_name": "더백푸드트럭 해방촌점",
+      "address": "서울 용산구 신흥로20길 45-1",
+      "district": "용산구",
+      "burger_style": "classic",
+      "stratum": "pinned_prior_pilot; manual_review; third_party_listing",
+      "searches": [
+        "더백푸드트럭 해방촌점 공식 메뉴",
+        "\"더백푸드트럭\" \"해방촌\" 공식 메뉴 가격",
+        "\"더백푸드트럭\" 해방촌 메뉴 가격"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=LAy2CouJjtqU",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "AMBIGUOUS",
+          "access_status": "ACCESSIBLE",
+          "http_status": null,
+          "currentness": "UNKNOWN",
+          "observed_at": null,
+          "retrieved_at": "2026-09-24T09:46:45Z",
+          "query_used": "더백푸드트럭 해방촌점 공식 메뉴",
+          "notes": "열린 페이지에 메뉴명·가격이 있으나 매장 주소 근거는 신흥로20길 45, DB는 45-1. 같은 지점인지 추가 확인 전 후보 추출/공개 판정 금지. 원문 메뉴 관찰 가능성과 신뢰 가능한 연결은 구분.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "07ec2d49-9064-4814-9c37-2afa82e43836",
+      "store_name": "롸카두들 이태원점",
+      "address": "서울 용산구 녹사평대로40나길 9",
+      "burger_style": "chicken",
+      "stratum": "chain_manual_review",
+      "searches": [
+        "롸카두들 이태원점 녹사평대로40나길 9 메뉴 공식",
+        "롸카두들 이태원 녹사평대로40나길9 테이블링",
+        "롸카두들 공식 홈페이지 메뉴 이태원 성수 포스코센터"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=KYu0m4YwDrEj",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "롸카두들 이태원 녹사평대로40나길9 테이블링",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows branch and exact road address at lines 94-98 and site menu at lines 140-172. Menu update date and dine-in price context absent; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "더 클래식",
+              "displayed_price": "11,800 원",
+              "price_krw": 11800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "치즈킨",
+              "displayed_price": "12,800 원",
+              "price_krw": 12800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "2e922474-8309-5ca4-96e4-54b3c2706c54",
+      "store_name": "롸카두들 내쉬빌 핫치킨 성수점",
+      "address": "서울 성동구 성수일로4길 25",
+      "burger_style": "chicken",
+      "stratum": "chain_manual_review",
+      "searches": [
+        "롸카두들 내쉬빌 핫치킨 성수점 성수일로4길 25 메뉴",
+        "롸카두들 공식 홈페이지 메뉴 이태원 성수 포스코센터"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=mIgdpi5zESzI",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "롸카두들 내쉬빌 핫치킨 성수점 성수일로4길 25 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows exact road address at lines 94-98 and menu at lines 138-170. Menu update date and price channel absent; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "클래식",
+              "displayed_price": "11,800 원",
+              "price_krw": 11800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "포포",
+              "displayed_price": "12,800 원",
+              "price_krw": 12800,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        },
+        {
+          "source_url": "https://www.tabling.co.kr/place/677cd05c66de5f069885ed18",
+          "source_type": "reservation_platform",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "롸카두들 내쉬빌 핫치킨 성수점 성수일로4길 25 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index showed name, address and menu, but web open returned an internal tool error. This is not an origin HTTP status. No menu extracted from this source.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "71052d2c-a483-4268-9655-70ecbcb36d9d",
+      "store_name": "롸카두들포스코센터",
+      "address": "서울 강남구 테헤란로 440",
+      "burger_style": "chicken",
+      "stratum": "chain_mixed",
+      "searches": [
+        "롸카두들포스코센터 테헤란로 440 메뉴 공식",
+        "\"롸카두들\" \"포스코센터\" 메뉴",
+        "롸카두들 공식 홈페이지 메뉴 이태원 성수 포스코센터"
+      ],
+      "sources": [
+        {
+          "source_url": "https://polle.com/place/14nNTX/%EB%A1%B8%EC%B9%B4%EB%91%90%EB%93%A4%20%EB%82%B4%EC%89%AC%EB%B9%8C%20%ED%95%AB%EC%B9%98%ED%82%A8",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"롸카두들\" \"포스코센터\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows 포스코센터 and 테헤란로 440 at lines 8-18; menu at lines 55-67. Recent review is separate from undated menu list; price currency/context not stated in list. C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "더 클래식",
+              "displayed_price": "11,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "그랜파",
+              "displayed_price": "11,500",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        },
+        {
+          "source_url": "https://www.tabling.co.kr/place/69365b127dadbfe8d3e98d42",
+          "source_type": "reservation_platform",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "\"롸카두들\" \"포스코센터\" 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index supplied branch name; web open returned internal tool error. Address/menu could not be inspected on origin page; no HTTP status inferred.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "ac3f7c80-2fb6-4eb8-8dcc-0291fce3b2a8",
+      "store_name": "브루클린더버거조인트 가로수길점",
+      "address": "서울 강남구 도산대로15길 12",
+      "burger_style": "classic",
+      "stratum": "chain_mixed",
+      "searches": [
+        "브루클린더버거조인트 가로수길점 도산대로15길 12 메뉴",
+        "\"브루클린더버거조인트 가로수길점\" 메뉴",
+        "캘프 버거 공식 홈페이지 옥수 효창 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.tabling.co.kr/restaurant/12764",
+          "source_type": "reservation_platform",
+          "source_tier": "B",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"브루클린더버거조인트 가로수길점\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened Tabling restaurant page has table-order label (line 23), exact branch/address (lines 13-15, 66-70), and two set items/prices (lines 80-99). Opened crawl was four months old and menu revision date absent. Price is table-order channel and may differ from single burger/dine-in menu; no official signature claim.",
+          "candidates": [
+            {
+              "menu_name": "SET_브루클린 웍스 140g",
+              "displayed_price": "12,500 원",
+              "price_krw": 12500,
+              "price_context": "order_channel",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "SET_브루클린 웍스 200g",
+              "displayed_price": "15,500 원",
+              "price_krw": 15500,
+              "price_context": "order_channel",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "01bac721-7751-50b3-8f88-22e239802b07",
+      "store_name": "캘프 옥수",
+      "address": "서울 성동구 한림말3길 10",
+      "burger_style": "unclassified",
+      "stratum": "other_manual_review",
+      "searches": [
+        "캘프 옥수 한림말3길 10 메뉴 주문",
+        "site:tabling.co.kr/place/ \"캘프 옥수\"",
+        "캘프 버거 공식 홈페이지 옥수 효창 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://polle.com/place/1wQ2wW/%EC%BA%98%ED%94%84",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "캘프 옥수 한림말3길 10 메뉴 주문",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows exact address (line 131) and undated menu (lines 71-81). Prices are bare numerals without currency or channel context; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "트러플 머쉬룸버거",
+              "displayed_price": "9,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "스파이시 쉬림프버거",
+              "displayed_price": "9,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        },
+        {
+          "source_url": "https://www.tabling.co.kr/place/677cd09566de5f06988656b8",
+          "source_type": "reservation_platform",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "site:tabling.co.kr/place/ \"캘프 옥수\"",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index showed exact address/menu; web open returned internal tool error. No origin HTTP status or menu extraction claimed.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "025c3cf8-885d-426c-b2a5-deb4180e8f3d",
+      "store_name": "캘프 효창",
+      "address": "서울 용산구 백범로 326-1",
+      "burger_style": "classic",
+      "stratum": "other_manual_review",
+      "searches": [
+        "캘프 효창 백범로 326-1 메뉴 주문",
+        "\"캘프 효창\" \"백범로 326-1\" 메뉴",
+        "site:tabling.co.kr/place/ \"캘프 효창\"",
+        "캘프 버거 공식 홈페이지 옥수 효창 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://polle.com/place/37WeR5/%EC%BA%98%ED%94%84",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "LOW",
+          "query_used": "\"캘프 효창\" \"백범로 326-1\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page shows exact address at line 98 and undated menu at lines 61-79; opened crawl was 11 months old and differs from newer search index (which included 페퍼잭). Search snippet was not extracted. Bare numeric prices have no currency/channel context; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "치즈 버거",
+              "displayed_price": "8,300",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            },
+            {
+              "menu_name": "트러플 머쉬룸 버거",
+              "displayed_price": "10,800",
+              "price_krw": null,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "0a24b8ba-ab60-4b1c-8cb9-7bd507a02c4c",
+      "store_name": "조아버거",
+      "address": "서울 성북구 오패산로4길 58",
+      "burger_style": "classic",
+      "stratum": "other_manual_review",
+      "searches": [
+        "조아버거 오패산로4길 58 메뉴",
+        "\"조아버거\" \"오패산로4길 58\"",
+        "조아버거 서울 성북구 오패산로4길 58 메뉴 가격",
+        "조아버거 성북 메뉴",
+        "조아버거 오패산로",
+        "조아버거 테이블링",
+        "site:diningcode.com/profile.php 조아버거 월곡",
+        "site:polle.com/place 조아버거 월곡"
+      ],
+      "additional_searches_after_cap": [
+        "site:tabling.co.kr 조아버거 월곡",
+        "조아버거 월곡점 서울특별시 성북구 오패산로4길 58 메뉴 가격",
+        "조아버거 월곡 버거 가격 전화",
+        "조아버거 월곡점 네이버 플레이스",
+        "조아버거 성북구 오패산로4길58 인스타그램"
+      ],
+      "sources": [
+        {
+          "source_url": "https://restaurantguru.com/%EC%A1%B0%EC%95%84%EB%B2%84%EA%B1%B0-Seoul",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "조아버거 성북 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search index suggests a 조아버거 in Seoul/Wolgok, but no exact address in snippet. Web open returned cache-miss tool error, not an origin HTTP status. No candidate extracted. Query cap was exceeded during exploratory search; all extra queries are recorded separately.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "6ead59be-261a-59d4-ae81-879f5b9bdf17",
+      "store_name": "스마일햄버거",
+      "address": "서울 강북구 도봉로95길 48",
+      "burger_style": "classic",
+      "stratum": "other_manual_review",
+      "searches": [
+        "스마일햄버거 도봉로95길 48 메뉴",
+        "\"스마일햄버거\" \"도봉로95길 48\" 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=3gjw0uGrIl8H",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"스마일햄버거\" \"도봉로95길 48\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page menu정보 shows item/price at lines 125-131; opened embedded review identifies 도봉로95길 48 2호 at line 328. Directory menu revision date and dine-in context absent; C-tier discovery only.",
+          "candidates": [
+            {
+              "menu_name": "스마일 햄버거",
+              "displayed_price": "4,000 원",
+              "price_krw": 4000,
+              "price_context": "unknown",
+              "evidence_grade": "NEEDS_REVIEW",
+              "suggested_decision": "NEEDS_REVIEW",
+              "extraction_method": "opened_page_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "7a60fb45-613f-5ae8-8831-8e0d0a3f95e1",
+      "store_name": "노스트레스버거 마포",
+      "address": "서울 마포구 숭문길 10",
+      "burger_style": "unclassified",
+      "stratum": "other_manual_review",
+      "searches": [
+        "\"노스트레스버거 마포\" \"숭문길 10\" 메뉴",
+        "노스트레스버거 마포 숭문길10 메뉴 테이블링",
+        "노스트레스버거 공식 메뉴 마포",
+        "\"노스트레스버거\" \"숭문길 10\" 버거 가격",
+        "\"노스트레스버거 마포\" 버거 메뉴 가격",
+        "\"노스트레스버거 마포\" site:polle.com",
+        "\"노스트레스버거 마포\" site:tabling.co.kr"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.albamon.com/jobs/detail/119044956?logpath=7&sc=524",
+          "source_type": "unknown",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "\"노스트레스버거\" \"숭문길 10\" 버거 가격",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search snippet of employer listing dated 2026-09-07 identifies business and 숭문길 10, but page open returned cache-miss tool error. Discovery of location only; no menu or origin HTTP status. Other search hits were for different Yongsan branches and were not used.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "81a45187-61f5-5c58-9d40-2180e500d83f",
+      "store_name": "떰즈업",
+      "address": "서울 마포구 숭문4길 12",
+      "burger_style": "classic",
+      "stratum": "other_manual_review",
+      "searches": [
+        "떰즈업 숭문4길 12 메뉴 가격",
+        "\"떰즈업\" 버거 메뉴",
+        "\"떰즈업\" \"숭문4길 12\"",
+        "\"떰즈업\" 공식 인스타그램 버거"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=joafrgoO5nCe",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"떰즈업\" \"숭문4길 12\"",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened public page shows exact name and 숭문4길 12; menu publication/update time and dine-in price context are unstated. C-tier menu is review-only.",
+          "candidates": [
+            {
+              "menu_name": "베이컨치즈버거",
+              "displayed_price": "8,900 원",
+              "price_krw": 8900,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "치즈버거",
+              "displayed_price": "7,900 원",
+              "price_krw": 7900,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "089a86fc-b188-4ce4-9490-f1513bc6a9f4",
+      "store_name": "차고버거",
+      "address": "서울 송파구 오금로11길 61-11",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "차고버거 오금로11길 61-11 메뉴 가격",
+        "\"차고버거\" 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.tabling.co.kr/place/677ccbc166de5f06987dd059",
+          "source_type": "reservation_platform",
+          "source_tier": "B",
+          "store_match": "EXACT_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "\"차고버거\" 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search result shows exact address and a menu, but opening the page returned a web-tool Internal Error. This is not an origin HTTP status; snippet was discovery only.",
+          "candidates": []
+        },
+        {
+          "source_url": "https://www.daangn.com/kr/local-profile/chago-burger-%EC%B0%A8%EA%B3%A0%EB%B2%84%EA%B1%B0-db3qto2nbeqo/",
+          "source_type": "business_profile",
+          "source_tier": "B",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "\"차고버거\" 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Business profile search result has menu snippet, but page open returned web-tool Internal Error; exact street address was not verified from opened content.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "6071b1a3-1d2d-48b7-b33c-beab99c3bc3e",
+      "store_name": "임어전씨수제버거 자양점",
+      "address": "서울 광진구 능동로4길 17",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "임어전씨수제버거 자양점 능동로4길 17 메뉴 가격",
+        "\"임어전씨수제버거\" 주문 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=aWFJMZrKFiAu",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "임어전씨수제버거 자양점 능동로4길 17 메뉴 가격",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page identifies 자양점 at 능동로4길 17 and lists menus. Menu update time and dine-in price context are unstated; other branches have different prices.",
+          "candidates": [
+            {
+              "menu_name": "훗벅(싱글)",
+              "displayed_price": "7,500 원",
+              "price_krw": 7500,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "어니언맨(싱글)",
+              "displayed_price": "7,500 원",
+              "price_krw": 7500,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "7be51a84-cac8-42a4-8d02-749c57fc2390",
+      "store_name": "버거스태인",
+      "address": "서울 성북구 오패산로 23",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "버거스태인 오패산로 23 메뉴 가격",
+        "\"버거스태인\" 메뉴",
+        "\"버거스태인\" \"오패산로 23\"",
+        "버거스태인 월곡 메뉴 가격",
+        "버거스태인 햄버거 메뉴 다이닝코드",
+        "버거스태인 오패산로 메뉴",
+        "버거스태인 instagram",
+        "\"버거스태인\" 버거"
+      ],
+      "additional_searches_after_cap": [
+        "site:diningcode.com/profile.php \"버거스태인\"",
+        "site:tabling.co.kr/place \"버거스태인\"",
+        "site:polle.com/place \"버거스태인\"",
+        "site:daangn.com/kr/local-profile \"버거스태인\""
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.114.co.kr/life/localBillStore/detail/1355654",
+          "source_type": "unknown",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "NOT_FETCHED",
+          "currentness": "UNKNOWN",
+          "query_used": "\"버거스태인\" \"오패산로 23\"",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search result matches store and address and says source data are not real-time; no menu. Search discovery only.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "8d89e5c6-c0f0-4b00-ba70-0a4fd45a26e1",
+      "store_name": "혜화동버거",
+      "address": "서울 종로구 동숭3길 6-4",
+      "burger_style": "chicken",
+      "stratum": "other_mixed",
+      "searches": [
+        "\"혜화동버거\" 메뉴",
+        "\"혜화동버거\" 공식 인스타그램"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=Xp44raolL6qF",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"혜화동버거\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page matches 동숭3길 6-4. Menu explicitly labels two donut burgers 시그니처. Displayed prices have no confirmed channel or update date.",
+          "candidates": [
+            {
+              "menu_name": "혜화동 치즈버거",
+              "displayed_price": "10,800 원",
+              "price_krw": 10800,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "도넛 치킨버거 (시그니처)",
+              "displayed_price": "13,300 원",
+              "price_krw": 13300,
+              "price_context": "unknown",
+              "signature_wording": "시그니처",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "도넛 치즈버거 (시그니처)",
+              "displayed_price": "13,800 원",
+              "price_krw": 13800,
+              "price_context": "unknown",
+              "signature_wording": "시그니처",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "8e84f2b0-1bff-5621-a5e1-993b65e73e63",
+      "store_name": "버거4.5",
+      "address": "서울 마포구 토정로 49",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "\"버거4.5\" \"토정로\" 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.daangn.com/kr/local-profile/%EB%B2%84%EA%B1%B04-5-tyysq8vvuij6/",
+          "source_type": "business_profile",
+          "source_tier": "B",
+          "store_match": "EXACT_MATCH",
+          "access_status": "FETCH_ERROR",
+          "currentness": "UNKNOWN",
+          "query_used": "\"버거4.5\" \"토정로\" 메뉴",
+          "observed_at": null,
+          "retrieved_at": null,
+          "notes": "Search result shows exact address and business profile edited 2026-09-04 with menu prices, but page open returned web-tool fetch error. Snippet is discovery only; no extraction.",
+          "candidates": []
+        },
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=SzRAVyH0YvSU",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"버거4.5\" \"토정로\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page matches 토정로 49 and contains one structured menu item. Price context and menu update time are unstated.",
+          "candidates": [
+            {
+              "menu_name": "뉴스탠다드",
+              "displayed_price": "8,900 원",
+              "price_krw": 8900,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "995d6ee3-fb81-4664-afc9-4468bf5b470c",
+      "store_name": "블랙마스터버거",
+      "address": "서울 서초구 주흥길 9",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "\"블랙마스터버거\" 메뉴",
+        "site:bmbburger.co.kr \"신논현\"",
+        "site:bmbburger.co.kr \"주흥길 9\"",
+        "\"블랙마스터버거 신논현점\" \"주흥길 9\" 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://bmbburger.co.kr/bmb_menu.html?cate=bmb_burger",
+          "source_type": "official_brand_page",
+          "source_tier": "A",
+          "store_match": "AMBIGUOUS",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"블랙마스터버거\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Official brand menu page opened, but only category labels were readable; no item names, prices, or 신논현 branch match in opened text. No candidate extracted.",
+          "candidates": []
+        },
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=DiI3vFxNE34Y",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"블랙마스터버거\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page identifies 신논현점 at 주흥길 9 and displays structured menu. Unstated menu update date and dine-in price context.",
+          "candidates": [
+            {
+              "menu_name": "[시그니처, BBQ 불맛 그대로]블랙Black마스터버거(단품)",
+              "displayed_price": "8,900 원",
+              "price_krw": 8900,
+              "price_context": "unknown",
+              "signature_wording": "시그니처",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "[야채듬뿍담뿍] 갈릭(Garlic)치즈베이컨버거(단품)",
+              "displayed_price": "10,900 원",
+              "price_krw": 10900,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "a1b48732-29d3-55c1-bdb7-7de9115cc194",
+      "store_name": "버거쑈",
+      "address": "서울 성동구 마조로 35",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "\"버거쑈\" \"마조로\" 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://polle.com/place/2cF0aR/%EB%B2%84%EA%B1%B0%EC%91%88",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"버거쑈\" \"마조로\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened Polle page matches exact street address and displays menu names/prices. Menu update date and price channel are unstated.",
+          "candidates": [
+            {
+              "menu_name": "리얼버거",
+              "displayed_price": "5,500",
+              "price_krw": 5500,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "베이컨치즈버거",
+              "displayed_price": "7,900",
+              "price_krw": 7900,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "b2d0103b-93a3-4533-8356-6ff950979643",
+      "store_name": "제레미버거 Jr",
+      "address": "서울 광진구 동일로60길 44",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "\"제레미버거 Jr\" 메뉴",
+        "\"제레미버거\" \"동일로60길 44\" 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=FVOOQcYnPUjc",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"제레미버거\" \"동일로60길 44\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page calls store 제레미버거 쥬니어 and matches 동일로60길 44. Another C-tier page agrees on selected prices; menu update date and price context unstated.",
+          "candidates": [
+            {
+              "menu_name": "치즈버거",
+              "displayed_price": "7,000 원",
+              "price_krw": 7000,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "제레미버거",
+              "displayed_price": "8,500 원",
+              "price_krw": 8500,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "e7b8152e-42a0-4638-aa80-8386e4a8bedf",
+      "store_name": "프로도버거",
+      "address": "서울 송파구 송파대로 201",
+      "burger_style": "classic",
+      "stratum": "other_mixed",
+      "searches": [
+        "\"프로도버거\" \"송파대로 201\" 메뉴",
+        "\"프로도버거\" \"송파대로\" 주문"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=gMmh1pslrRaN",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "currentness": "UNKNOWN",
+          "query_used": "\"프로도버거\" \"송파대로 201\" 메뉴",
+          "observed_at": "2026-09-24",
+          "retrieved_at": "2026-09-24",
+          "notes": "Opened page says 프로도 버거 and 송파대로 201 테라타워2 B동 1층 147호. Older blog describes 203호, so unit identity/location should be rechecked. Menu update date and price channel unstated.",
+          "candidates": [
+            {
+              "menu_name": "치즈버거",
+              "displayed_price": "8,500 원",
+              "price_krw": 8500,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            },
+            {
+              "menu_name": "더블버거",
+              "displayed_price": "11,900 원",
+              "price_krw": 11900,
+              "price_context": "unknown",
+              "extraction_method": "opened_page_text",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "stores": [
+    {
+      "store_id": "4632fe97-56f9-4aac-8f28-b9c916fa925d",
+      "store_name": "더백테라스 신용산점",
+      "address": "서울 용산구 한강대로40길 26",
+      "district": "용산구",
+      "burger_style": "classic",
+      "stratum": "pinned_prior_pilot; manual_review; order_platform",
+      "searches": [
+        "더백테라스 신용산점 공식 메뉴 가격",
+        "\"더백테라스\" \"신용산\"",
+        "\"더백테라스\" burger Seoul menu"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.shuttledelivery.co.kr/ko/restaurant/menu/1020",
+          "source_type": "delivery_platform",
+          "source_tier": "B",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "http_status": null,
+          "currentness": "MEDIUM",
+          "observed_at": null,
+          "retrieved_at": "2026-09-24T09:46:45Z",
+          "query_used": "더백테라스 신용산점 공식 메뉴 가격",
+          "notes": "열린 주문 페이지의 매장명과 한강대로40길 26 주소 일치. 영업 일정과 배송/포장 가격은 보이나 버거 상품 제목이 본문 추출에서 공백이므로 이름-가격 쌍 추출 실패. 웹 도구는 origin HTTP status를 제공하지 않음.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "3ae148d2-a483-4268-9655-70ecbcb36d9d",
+      "store_name": "PPS",
+      "address": "서울 용산구 한강대로50길 24",
+      "district": "용산구",
+      "burger_style": "smash",
+      "stratum": "pinned_prior_pilot; manual_review; business_profile",
+      "searches": [
+        "PPS 버거 서울 공식 메뉴 가격"
+      ],
+      "sources": [
+        {
+          "source_url": "https://gajaseoul.com/ko/store/pps_sinyongsan",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "http_status": null,
+          "currentness": "UNKNOWN",
+          "observed_at": null,
+          "retrieved_at": null,
+          "query_used": "PPS 버거 서울 공식 메뉴 가격",
+          "notes": "검색 결과는 PPS 신용산/한강대로50길 24를 가리키나 페이지 열기는 도구 Internal Error. 원문 추출이나 HTTP 403 판정 불가.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "45ea2502-223c-45b3-9bc1-ca2465faa354",
+      "store_name": "노스트레스버거",
+      "address": "서울 용산구 신흥로 62",
+      "district": "용산구",
+      "burger_style": "unclassified",
+      "stratum": "pinned_prior_pilot; mixed; editorial_only",
+      "searches": [
+        "노스트레스버거 공식 메뉴 가격 서울",
+        "\"노스트레스버거\" 서울 메뉴"
+      ],
+      "sources": [
+        {
+          "source_url": "https://delistationkorea.com/noksapyeong-cheeseburger-nostress-burger/",
+          "source_type": "blog",
+          "source_tier": "C",
+          "store_match": "LIKELY_MATCH",
+          "access_status": "FETCH_ERROR",
+          "http_status": null,
+          "currentness": "UNKNOWN",
+          "observed_at": null,
+          "retrieved_at": null,
+          "query_used": "노스트레스버거 공식 메뉴 가격 서울",
+          "notes": "최근 검색 색인에 매장/메뉴 언급이 있으나 페이지 열기는 도구 Internal Error. 스니펫을 메뉴 원문으로 사용하지 않음.",
+          "candidates": []
+        }
+      ]
+    },
+    {
+      "store_id": "d81b00f3-a142-42ad-b676-225122a5abb7",
+      "store_name": "N버거",
+      "address": "서울 용산구 남산공원길 105",
+      "district": "용산구",
+      "burger_style": "other",
+      "stratum": "pinned_prior_pilot; manual_review; official_brand",
+      "searches": [
+        "N버거 서울 공식 메뉴 가격 버거",
+        "N버거 남산 서울타워 메뉴 가격 2026",
+        "N버거 N서울타워 공식"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.nseoultower.co.kr/media/news/view.asp?idx=72",
+          "source_type": "official_brand_page",
+          "source_tier": "A",
+          "store_match": "EXACT_MATCH",
+          "access_status": "ACCESSIBLE",
+          "http_status": null,
+          "currentness": "MEDIUM",
+          "observed_at": "2026-05-20",
+          "retrieved_at": "2026-09-24T09:46:45Z",
+          "query_used": "N버거 남산 서울타워 메뉴 가격 2026",
+          "notes": "N서울타워 운영사 공식 보도자료. 2026-05-20 게시; 현재 상시 메뉴 페이지는 아니므로 판매 지속은 미확인. 가격 없음.",
+          "candidates": [
+            {
+              "menu_name": "서울 불고기 버거",
+              "displayed_price": "",
+              "price_krw": null,
+              "price_context": "unknown",
+              "signature_wording": "대표 메뉴; 시그니처 메뉴",
+              "extraction_method": "opened_html_text",
+              "evidence_grade": "A3",
+              "suggested_decision": "NEEDS_REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "store_id": "8bd06746-55ac-4cda-8621-6adf0f8dc312",
+      "store_name": "더백푸드트럭 해방촌점",
+      "address": "서울 용산구 신흥로20길 45-1",
+      "district": "용산구",
+      "burger_style": "classic",
+      "stratum": "pinned_prior_pilot; manual_review; third_party_listing",
+      "searches": [
+        "더백푸드트럭 해방촌점 공식 메뉴",
+        "\"더백푸드트럭\" \"해방촌\" 공식 메뉴 가격",
+        "\"더백푸드트럭\" 해방촌 메뉴 가격"
+      ],
+      "sources": [
+        {
+          "source_url": "https://www.diningcode.com/profile.php?rid=LAy2CouJjtqU",
+          "source_type": "third_party_review",
+          "source_tier": "C",
+          "store_match": "AMBIGUOUS",
+          "access_status": "ACCESSIBLE",
+          "http_status": null,
+          "currentness": "UNKNOWN",
+          "observed_at": null,
+          "retrieved_at": "2026-09-24T09:46:45Z",
+          "query_used": "더백푸드트럭 해방촌점 공식 메뉴",
+          "notes": "열린 페이지에 메뉴명·가격이 있으나 매장 주소 근거는 신흥로20길 45, DB는 45-1. 같은 지점인지 추가 확인 전 후보 추출/공개 판정 금지. 원문 메뉴 관찰 가능성과 신뢰 가능한 연결은 구분.",
+          "candidates": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "input_provenance": "Curated observations from the earlier 2026-09-24 Yongsan pilot; not a live search or fresh HTTP extraction. No production write.",
+  "stores": [
+    {
+      "id": "4632fe97-56f9-4aac-8f28-b9c916fa925d",
+      "name": "더백테라스 신용산점",
+      "address": "서울 용산구 한강대로40길 26",
+      "sources": [
+        {
+          "url": "https://www.shuttledelivery.co.kr/ko/restaurant/menu/1020",
+          "title": "더백테라스 신용산점 Shuttle 주문 페이지",
+          "source_type": "delivery_platform",
+          "source_store_name": "더백테라스 신용산점",
+          "source_address": "서울 용산구 한강대로40길 26",
+          "checked_at": "2026-09-24T08:35:46Z",
+          "discovery_query": "더백테라스 신용산점 메뉴",
+          "current_menu": true,
+          "menus": [
+            {"name_raw": "더백버거", "price_raw": "10800", "price_record_kind": "prior_csv_numeric_krw", "price_context": "delivery", "extraction_method": "prior_csv_numeric_observation", "notes": "이전 CSV의 KRW 숫자 기록; 페이지 원문 가격 표기는 보존되지 않음. 매장 현장 가격과 같다는 근거 없음"},
+            {"name_raw": "아메리칸 치즈버거", "price_raw": "9500", "price_record_kind": "prior_csv_numeric_krw", "price_context": "delivery", "extraction_method": "prior_csv_numeric_observation", "notes": "이전 CSV의 KRW 숫자 기록; 페이지 원문 가격 표기는 보존되지 않음. 매장 현장 가격과 같다는 근거 없음"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "3ae148d2-a483-4268-9655-70ecbcb36d9d",
+      "name": "PPS",
+      "address": "서울 용산구 한강대로50길 24",
+      "sources": [
+        {
+          "url": "https://www.daangn.com/kr/local-profile/pps-%ED%94%BC%ED%94%BC%EC%97%90%EC%8A%A4-aaask55ajnq3/",
+          "title": "PPS 비즈니스 프로필",
+          "source_type": "business_profile",
+          "source_store_name": "PPS",
+          "source_address": "서울 용산구 한강대로50길 24",
+          "checked_at": "2026-09-24T08:35:46Z",
+          "discovery_query": "PPS 한강대로50길 24 메뉴",
+          "access_status": "BLOCKED_SOURCE",
+          "menus": [
+            {"name_raw": "SMASHED BURGER", "price_raw": "12,900원~", "price_context": "unknown", "extraction_method": "prior_search_index_observation", "notes": "직접 페이지 403; 검색 인덱스 관찰값이며 세트 시작 가격"},
+            {"name_raw": "FRITAS BURGER", "price_raw": "13,900원~", "price_context": "unknown", "extraction_method": "prior_search_index_observation", "notes": "직접 페이지 403; 검색 인덱스 관찰값이며 세트 시작 가격"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "45ea2502-223c-45b3-9bc1-ca2465faa354",
+      "name": "노스트레스버거",
+      "address": "서울 용산구 신흥로 62",
+      "sources": [
+        {
+          "url": "https://www.daangn.com/kr/local-profile/%EB%85%B8%EC%8A%A4%ED%8A%B8%EB%A0%88%EC%8A%A4%EB%B2%84%EA%B1%B0-sq9ttm4vov5h/",
+          "title": "노스트레스버거 비즈니스 프로필",
+          "source_type": "business_profile",
+          "source_store_name": "노스트레스버거",
+          "source_address": "서울 용산구 신흥로 62",
+          "checked_at": "2026-09-24T08:35:46Z",
+          "discovery_query": "노스트레스버거 메뉴",
+          "access_status": "BLOCKED_SOURCE",
+          "menus": [
+            {"name_raw": "Classic cheese burger", "price_raw": "7,500원~", "price_context": "unknown", "extraction_method": "prior_search_index_observation", "notes": "직접 페이지 403; 시작 가격은 확정 가격이 아님"},
+            {"name_raw": "Double cheese burger", "price_raw": "10,500원~", "price_context": "unknown", "extraction_method": "prior_search_index_observation", "notes": "직접 페이지 403; 시작 가격은 확정 가격이 아님"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d81b00f3-a142-42ad-b676-225122a5abb7",
+      "name": "N버거",
+      "address": "서울 용산구 남산공원길 105",
+      "sources": [
+        {
+          "url": "https://www.nseoultower.co.kr/media/news/view.asp?idx=72",
+          "title": "N서울타워 N버거 소개 자료",
+          "source_type": "official_brand_page",
+          "ownership_verified": true,
+          "source_store_name": "N버거",
+          "source_address": "서울 용산구 남산공원길 105",
+          "checked_at": "2026-09-24T08:35:46Z",
+          "discovery_query": "N버거 공식 메뉴",
+          "current_menu": false,
+          "menus": [
+            {"name_raw": "서울 불고기 버거", "price_raw": "", "price_context": "unknown", "signature_claim": true, "extraction_method": "prior_manual_observation", "notes": "공식 소개에 언급되지만 현재 판매 메뉴와 가격은 확인되지 않음"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "8bd06746-55ac-4cda-8621-6adf0f8dc312",
+      "name": "더백푸드트럭 해방촌점",
+      "address": "서울 용산구 신흥로20길 45-1",
+      "sources": [
+        {
+          "url": "https://www.shuttledelivery.co.kr/ko/restaurant/menu/1020",
+          "title": "더백테라스 신용산점 Shuttle 주문 페이지",
+          "source_type": "delivery_platform",
+          "source_store_name": "더백테라스 신용산점",
+          "source_address": "서울 용산구 한강대로40길 26",
+          "checked_at": "2026-09-24T08:35:46Z",
+          "discovery_query": "더백푸드트럭 해방촌점 메뉴",
+          "menus": [
+            {"name_raw": "더백버거", "price_raw": "", "price_context": "unknown", "extraction_method": "prior_cross_store_inference", "notes": "다른 지점 메뉴를 대상 지점 메뉴로 추론한 관찰값"}
+          ]
+        }
+      ]
+    }
+  ]
+}
