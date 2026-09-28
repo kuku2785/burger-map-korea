@@ -10,6 +10,9 @@ import 'package:burger_map_korea/features/map/presentation/map_screen.dart';
 import 'package:burger_map_korea/features/map/presentation/store_preview_card.dart';
 import 'package:burger_map_korea/features/menu/domain/menu_item.dart';
 import 'package:burger_map_korea/features/menu/domain/menu_repository.dart';
+import 'package:burger_map_korea/features/reviews/domain/review.dart';
+import 'package:burger_map_korea/features/reviews/domain/review_repository.dart';
+import 'package:burger_map_korea/features/reviews/presentation/store_review_section.dart';
 import 'package:burger_map_korea/features/stores/domain/burger_style.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
 import 'package:burger_map_korea/features/stores/presentation/store_detail_screen.dart';
@@ -17,6 +20,69 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('guest review login returns to the same store editor', (
+    tester,
+  ) async {
+    final auth = _AuthRepository();
+    final reviews = _EmptyReviewRepository();
+    final authBootstrap = Completer<AuthController>();
+    await tester.pumpWidget(
+      BurgerMapApp(
+        config: const AppConfig(
+          environment: AppEnvironment.development,
+          storeDataMode: StoreDataMode.supabase,
+          googleMapsApiKey: 'test-key',
+          supabaseUrl: 'https://unit.invalid',
+          supabasePublishableKey: 'publishable-test-value',
+        ),
+        authControllerLoader: () => authBootstrap.future,
+        supabaseStoreLoader: () async => [
+          StoreLocation(
+            id: 'store-alpha',
+            name: 'Alpha Burger',
+            address: 'Seoul Yongsan Alpha-ro 1',
+            latitude: 37.53,
+            longitude: 126.99,
+            burgerStyle: 'smash',
+            verificationStatus: 'verified',
+          ),
+        ],
+        favoriteStoreIdsStore: _FavoritesStore(),
+        reviewRepository: reviews,
+        mapSurfaceBuilder: (_, _) => const ColoredBox(color: Colors.white),
+      ),
+    );
+    await tester.pump();
+    await tester.enterText(find.byKey(storeSearchFieldKey), 'Alpha');
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('store-search-result-store-alpha')),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(storePreviewDetailsButtonKey));
+    await tester.pumpAndSettle();
+    expect(find.byType(StoreDetailScreen), findsOneWidget);
+    await tester.ensureVisible(find.byKey(reviewWriteButtonKey));
+    await tester.tap(find.byKey(reviewWriteButtonKey));
+    authBootstrap.complete(AuthController(auth));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsOneWidget);
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StoreDetailScreen), findsOneWidget);
+    expect(find.byKey(reviewContentFieldKey), findsNothing);
+    await tester.ensureVisible(find.byKey(reviewWriteButtonKey));
+    await tester.tap(find.byKey(reviewWriteButtonKey));
+    await tester.pumpAndSettle();
+    auth.signIn();
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsNothing);
+    expect(find.byType(StoreDetailScreen), findsOneWidget);
+    expect(find.text('Alpha Burger'), findsOneWidget);
+    expect(find.byKey(reviewContentFieldKey), findsOneWidget);
+    expect(reviews.lastUserId, 'user-a');
+  });
+
   testWidgets('guest can read store/menu and keep favorites and map context', (
     tester,
   ) async {
@@ -184,4 +250,34 @@ class _EmptyMenuRepository implements MenuRepository {
     requestedIds.add(storeId);
     return [];
   }
+}
+
+class _EmptyReviewRepository implements ReviewRepository {
+  String? lastUserId;
+
+  @override
+  Future<List<StoreReview>> loadForStore(
+    String storeId, {
+    String? userId,
+  }) async {
+    lastUserId = userId;
+    return [];
+  }
+
+  @override
+  Future<void> create({
+    required String storeId,
+    required int rating,
+    required String? content,
+  }) async {}
+
+  @override
+  Future<void> update({
+    required String reviewId,
+    required int rating,
+    required String? content,
+  }) async {}
+
+  @override
+  Future<void> delete(String reviewId) async {}
 }

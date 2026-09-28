@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../application/auth_controller.dart';
@@ -13,6 +14,7 @@ typedef PublicExplorationBuilder =
       Future<void> Function()? onSignOut,
       VoidCallback? onSetNickname,
       VoidCallback? onRetryAuth,
+      ValueListenable<AuthController?> controllerListenable,
     );
 
 /// Authentication adds optional account actions to a persistent public map.
@@ -32,6 +34,8 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   AuthController? _controller;
+  final ValueNotifier<AuthController?> _controllerListenable =
+      ValueNotifier<AuthController?>(null);
   Future<AuthController?>? _controllerLoad;
   Route<void>? _loginRoute;
   Route<void>? _nicknameRoute;
@@ -69,6 +73,7 @@ class _AuthGateState extends State<AuthGate> {
       _controller = controller;
       controller.addListener(_onAuthChanged);
       controller.initialize();
+      _controllerListenable.value = controller;
       setState(() {});
       return controller;
     } on Object {
@@ -165,6 +170,7 @@ class _AuthGateState extends State<AuthGate> {
       controller?.hasSession == true && controller?.state == AuthGateState.error
           ? () => unawaited(controller!.retry())
           : null,
+      _controllerListenable,
     );
   }
 
@@ -172,6 +178,7 @@ class _AuthGateState extends State<AuthGate> {
   void dispose() {
     _controller?.removeListener(_onAuthChanged);
     _controller?.dispose();
+    _controllerListenable.dispose();
     super.dispose();
   }
 }

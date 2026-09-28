@@ -8,6 +8,9 @@ import '../domain/google_maps_directions.dart';
 import '../domain/store_location.dart';
 import '../../menu/domain/menu_repository.dart';
 import '../../menu/presentation/store_menu_section.dart';
+import '../../auth/application/auth_controller.dart';
+import '../../reviews/domain/review_repository.dart';
+import '../../reviews/presentation/store_review_section.dart';
 
 const storeDetailBackButtonKey = ValueKey<String>('store-detail-back-button');
 const storeAddressCopyButtonKey = ValueKey<String>('store-address-copy-button');
@@ -31,6 +34,11 @@ class StoreDetailScreen extends StatefulWidget {
     this.storeProvider,
     this.unavailableMessageProvider,
     this.menuRepository,
+    this.reviewRepository,
+    this.authControllerListenable,
+    this.onReviewSignIn,
+    this.onReviewSetNickname,
+    this.onReviewRetryAuth,
   });
 
   final StoreLocation store;
@@ -45,6 +53,11 @@ class StoreDetailScreen extends StatefulWidget {
   final StoreLocation? Function()? storeProvider;
   final String Function()? unavailableMessageProvider;
   final MenuRepository? menuRepository;
+  final ReviewRepository? reviewRepository;
+  final ValueListenable<AuthController?>? authControllerListenable;
+  final VoidCallback? onReviewSignIn;
+  final VoidCallback? onReviewSetNickname;
+  final VoidCallback? onReviewRetryAuth;
 
   @override
   State<StoreDetailScreen> createState() => _StoreDetailScreenState();
@@ -233,6 +246,18 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                       StoreMenuSection(
                         storeId: store.id,
                         repository: widget.menuRepository!,
+                      ),
+                    ],
+                    if (widget.reviewRepository != null) ...[
+                      const SizedBox(height: 32),
+                      StoreReviewSection(
+                        storeId: store.id,
+                        repository: widget.reviewRepository!,
+                        authControllerListenable:
+                            widget.authControllerListenable,
+                        onSignIn: widget.onReviewSignIn,
+                        onSetNickname: widget.onReviewSetNickname,
+                        onRetryAuth: widget.onReviewRetryAuth,
                       ),
                     ],
                   ],

@@ -9,6 +9,7 @@ import 'core/config/app_config.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/auth/data/supabase_auth_repository.dart';
 import 'features/menu/data/supabase_menu_repository.dart';
+import 'features/reviews/data/supabase_review_repository.dart';
 import 'features/stores/data/supabase_store_locations_loader.dart';
 
 void main() {
@@ -76,6 +77,10 @@ void main() {
       config.usesSupabaseStoreData && config.hasSupabaseConfiguration
       ? SupabaseMenuRepository(clientLoader: loadSupabaseClient)
       : null;
+  final reviewRepository =
+      config.usesSupabaseStoreData && config.hasSupabaseConfiguration
+      ? SupabaseReviewRepository(clientLoader: loadSupabaseClient)
+      : null;
 
   runApp(
     BurgerMapApp(
@@ -83,6 +88,7 @@ void main() {
       supabaseStoreLoader: supabaseLoader?.load,
       authControllerLoader: authControllerLoader,
       menuRepository: menuRepository,
+      reviewRepository: reviewRepository,
     ),
   );
 }

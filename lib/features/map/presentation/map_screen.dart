@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../auth/application/auth_controller.dart';
 import '../../info/presentation/app_info_screen.dart';
 import '../../favorites/application/favorite_store_ids_controller.dart';
 import '../../favorites/data/shared_preferences_favorite_store_ids_store.dart';
@@ -14,6 +15,7 @@ import '../../location/application/current_location_controller.dart';
 import '../../location/data/geolocator_current_location_service.dart';
 import '../../location/domain/current_location_service.dart';
 import '../../menu/domain/menu_repository.dart';
+import '../../reviews/domain/review_repository.dart';
 import '../../stores/application/public_store_controller.dart';
 import '../../stores/data/external_uri_launcher.dart';
 import '../../stores/data/itaewon_store_locations.dart';
@@ -108,6 +110,8 @@ class MapScreen extends StatefulWidget {
     this.onSetNickname,
     this.onRetryAuth,
     this.menuRepository,
+    this.reviewRepository,
+    this.authControllerListenable,
   });
 
   final AppConfig config;
@@ -137,6 +141,8 @@ class MapScreen extends StatefulWidget {
   final VoidCallback? onSetNickname;
   final VoidCallback? onRetryAuth;
   final MenuRepository? menuRepository;
+  final ReviewRepository? reviewRepository;
+  final ValueListenable<AuthController?>? authControllerListenable;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -1347,6 +1353,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ? StoreDetailScreen(
                 store: store,
                 menuRepository: widget.menuRepository,
+                reviewRepository: widget.reviewRepository,
+                authControllerListenable: widget.authControllerListenable,
+                onReviewSignIn: widget.onSignIn,
+                onReviewSetNickname: widget.onSetNickname,
+                onReviewRetryAuth: widget.onRetryAuth,
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>
                     _setStoreFavorite(store, isFavorite),
@@ -1365,6 +1376,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             : StoreDetailScreen(
                 store: store,
                 menuRepository: widget.menuRepository,
+                reviewRepository: widget.reviewRepository,
+                authControllerListenable: widget.authControllerListenable,
+                onReviewSignIn: widget.onSignIn,
+                onReviewSetNickname: widget.onSetNickname,
+                onReviewRetryAuth: widget.onRetryAuth,
                 externalUriLauncher: externalUriLauncher,
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>

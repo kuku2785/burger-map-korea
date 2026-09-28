@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../core/config/app_config.dart';
@@ -6,6 +7,7 @@ import '../features/auth/presentation/auth_gate.dart';
 import '../features/favorites/domain/favorite_store_ids_store.dart';
 import '../features/map/presentation/map_screen.dart';
 import '../features/menu/domain/menu_repository.dart';
+import '../features/reviews/domain/review_repository.dart';
 import 'app_theme.dart';
 
 typedef AuthControllerLoader = Future<AuthController> Function();
@@ -19,6 +21,7 @@ class BurgerMapApp extends StatelessWidget {
     this.mapSurfaceBuilder,
     this.authControllerLoader,
     this.menuRepository,
+    this.reviewRepository,
   });
 
   final AppConfig config;
@@ -27,6 +30,7 @@ class BurgerMapApp extends StatelessWidget {
   final StoreMapSurfaceBuilder? mapSurfaceBuilder;
   final AuthControllerLoader? authControllerLoader;
   final MenuRepository? menuRepository;
+  final ReviewRepository? reviewRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +43,20 @@ class BurgerMapApp extends StatelessWidget {
           : AuthGate(
               controllerLoader: authControllerLoader!,
               publicBuilder:
-                  (context, onSignIn, onSignOut, onSetNickname, onRetryAuth) =>
-                      _buildMapScreen(
-                        onSignIn: onSignIn,
-                        onSignOut: onSignOut,
-                        onSetNickname: onSetNickname,
-                        onRetryAuth: onRetryAuth,
-                      ),
+                  (
+                    context,
+                    onSignIn,
+                    onSignOut,
+                    onSetNickname,
+                    onRetryAuth,
+                    authControllerListenable,
+                  ) => _buildMapScreen(
+                    onSignIn: onSignIn,
+                    onSignOut: onSignOut,
+                    onSetNickname: onSetNickname,
+                    onRetryAuth: onRetryAuth,
+                    authControllerListenable: authControllerListenable,
+                  ),
             ),
     );
   }
@@ -55,6 +66,7 @@ class BurgerMapApp extends StatelessWidget {
     Future<void> Function()? onSignOut,
     VoidCallback? onSetNickname,
     VoidCallback? onRetryAuth,
+    ValueListenable<AuthController?>? authControllerListenable,
   }) => MapScreen(
     config: config,
     supabaseStoreLoader: supabaseStoreLoader,
@@ -64,6 +76,8 @@ class BurgerMapApp extends StatelessWidget {
     onSignOut: onSignOut,
     onSetNickname: onSetNickname,
     onRetryAuth: onRetryAuth,
+    authControllerListenable: authControllerListenable,
     menuRepository: menuRepository,
+    reviewRepository: reviewRepository,
   );
 }

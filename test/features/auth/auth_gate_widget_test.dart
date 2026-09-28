@@ -280,8 +280,15 @@ Widget _app(
   home: AuthGate(
     controllerLoader: () async =>
         AuthController(repository, googleSignInEnabled: googleEnabled),
-    publicBuilder: (context, onSignIn, onSignOut, onSetNickname, onRetryAuth) =>
-        _PublicShell(
+    publicBuilder:
+        (
+          context,
+          onSignIn,
+          onSignOut,
+          onSetNickname,
+          onRetryAuth,
+          controller,
+        ) => _PublicShell(
           onSignIn: onSignIn,
           onSignOut: onSignOut,
           onSetNickname: onSetNickname,
