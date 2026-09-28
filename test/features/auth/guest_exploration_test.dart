@@ -73,7 +73,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(StoreDetailScreen), findsOneWidget);
     expect(menu.requestedIds, [storeId]);
-    expect(find.text('등록된 메뉴 정보가 없습니다.'), findsOneWidget);
+    expect(find.text('아직 확인된 메뉴 정보가 없습니다.'), findsOneWidget);
     await tester.tap(find.byKey(storeFavoriteButtonKey));
     await tester.pump();
     expect(favorites.ids, {storeId});

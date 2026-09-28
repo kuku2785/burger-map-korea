@@ -52,12 +52,16 @@ void main() {
       ..enqueue('store-a', pending.future);
     await tester.pumpWidget(app('store-a', repository));
 
-    expect(find.text('메뉴'), findsOneWidget);
+    expect(find.text('확인된 메뉴'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('더블 치즈버거'), findsNothing);
 
     pending.complete([menu()]);
     await tester.pumpAndSettle();
+    expect(
+      find.text('현재 확인된 메뉴 정보입니다. 일부 메뉴가 누락되었거나 변경되었을 수 있습니다.'),
+      findsOneWidget,
+    );
     expect(find.text('더블 치즈버거'), findsOneWidget);
     expect(find.text('대표'), findsOneWidget);
     expect(find.text('12,900원'), findsOneWidget);
@@ -79,7 +83,11 @@ void main() {
       );
     await tester.pumpWidget(app('store-a', repository));
     await tester.pumpAndSettle();
-    expect(find.text('등록된 메뉴 정보가 없습니다.'), findsOneWidget);
+    expect(find.text('아직 확인된 메뉴 정보가 없습니다.'), findsOneWidget);
+    expect(
+      find.text('현재 확인된 메뉴 정보입니다. 일부 메뉴가 누락되었거나 변경되었을 수 있습니다.'),
+      findsNothing,
+    );
     expect(find.text('메뉴 정보를 불러오지 못했습니다.'), findsNothing);
 
     await tester.pumpWidget(app('store-b', repository));

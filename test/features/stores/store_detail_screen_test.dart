@@ -116,7 +116,7 @@ void main() {
         menuRepository: _PendingMenuRepository(pending.future),
       ),
     );
-    expect(find.text('메뉴'), findsOneWidget);
+    expect(find.text('확인된 메뉴'), findsOneWidget);
 
     publicStoreIds.value = const <String>{};
     await tester.pump();
@@ -135,7 +135,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('오래된 메뉴'), findsNothing);
-    expect(find.text('메뉴'), findsNothing);
+    expect(find.text('확인된 메뉴'), findsNothing);
     expect(find.text('이 매장은 더 이상 공개 목록에서 제공되지 않습니다.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

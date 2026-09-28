@@ -48,7 +48,7 @@ class _StoreMenuSectionState extends State<StoreMenuSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('메뉴', style: Theme.of(context).textTheme.titleLarge),
+        Text('확인된 메뉴', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         FutureBuilder<List<MenuItem>>(
           future: _menus,
@@ -88,11 +88,21 @@ class _StoreMenuSectionState extends State<StoreMenuSection> {
             if (menus.isEmpty) {
               return Semantics(
                 liveRegion: true,
-                child: const Text('등록된 메뉴 정보가 없습니다.'),
+                child: const Text('아직 확인된 메뉴 정보가 없습니다.'),
               );
             }
             return Column(
-              children: [for (final menu in menus) _MenuCard(menu: menu)],
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '현재 확인된 메뉴 정보입니다. 일부 메뉴가 누락되었거나 변경되었을 수 있습니다.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final menu in menus) _MenuCard(menu: menu),
+              ],
             );
           },
         ),
