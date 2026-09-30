@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:burger_map_korea/features/auth/application/auth_controller.dart';
 import 'package:burger_map_korea/features/auth/domain/auth_repository.dart';
 import 'package:burger_map_korea/features/reviews/domain/review.dart';
+import 'package:burger_map_korea/features/reviews/domain/review_report.dart';
 import 'package:burger_map_korea/features/reviews/domain/review_repository.dart';
 import 'package:burger_map_korea/features/reviews/presentation/store_review_section.dart';
 import 'package:flutter/material.dart';
@@ -271,6 +272,245 @@ void main() {
     expect(find.text('보통 · 내 리뷰'), findsOneWidget);
     expect(reviews.createCalls, 1);
   });
+
+  test('report reasons retain the existing database contract', () {
+    expect(reviewReportDatabaseReason(ReviewReportReason.abuse), 'harassment');
+    expect(
+      reviewReportDatabaseReason(ReviewReportReason.privacy),
+      'personal_information',
+    );
+    expect(
+      reviewReportDatabaseReason(ReviewReportReason.falseInformation),
+      'other',
+    );
+    expect(
+      normalizedReportDetail(ReviewReportReason.falseInformation, ''),
+      '허위 정보 의심',
+    );
+    expect(normalizedReportDetail(ReviewReportReason.other, '  설명  '), '설명');
+    expect(
+      reportDetailValidationMessage(ReviewReportReason.other, null),
+      isNotNull,
+    );
+  });
+
+  testWidgets('other public review has report, own review does not', (
+    tester,
+  ) async {
+    final authRepository = _FakeAuthRepository()..signIn();
+    final auth = AuthController(authRepository)..initialize();
+    addTearDown(auth.dispose);
+    final reviews = _FakeReviewRepository()
+      ..rows.addAll([_review('user-a'), _review('other-a')]);
+    await tester.pumpWidget(_app(reviews, auth: auth));
+    await tester.pump();
+    expect(find.byKey(reviewReportButtonKey), findsOneWidget);
+    expect(find.byKey(reviewEditButtonKey), findsOneWidget);
+  });
+
+  testWidgets('report requires reason and other detail, then submits once', (
+    tester,
+  ) async {
+    final authRepository = _FakeAuthRepository()..signIn();
+    final auth = AuthController(authRepository)..initialize();
+    addTearDown(auth.dispose);
+    final gate = Completer<void>();
+    final reviews = _FakeReviewRepository()
+      ..rows.add(_review('other-a'))
+      ..reportGate = gate.future;
+    await tester.pumpWidget(_app(reviews, auth: auth));
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+    await tester.pump();
+    expect(find.text('신고 사유를 선택해 주세요.'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey<String>('review-report-reason-other')),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+    await tester.pump();
+    expect(find.text('기타 사유를 입력해 주세요.'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(reviewReportDetailFieldKey),
+      '추가 확인이 필요합니다',
+    );
+    await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+    await tester.pump();
+    expect(reviews.reportCalls, 1);
+    expect(reviews.lastReportReviewId, 'store-a-other-a');
+    expect(reviews.lastReportReason, ReviewReportReason.other);
+    expect(reviews.lastReportDetail, '추가 확인이 필요합니다');
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(reviewReportSubmitButtonKey))
+          .onPressed,
+      isNull,
+    );
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('신고가 접수되었습니다.'), findsOneWidget);
+    expect(reviews.reportCalls, 1);
+  });
+
+  testWidgets(
+    'report failure stays recoverable without exposing backend text',
+    (tester) async {
+      final authRepository = _FakeAuthRepository()..signIn();
+      final auth = AuthController(authRepository)..initialize();
+      addTearDown(auth.dispose);
+      final reviews = _FakeReviewRepository()
+        ..rows.add(_review('other-a'))
+        ..nextReportFailure = ReviewFailure.unavailable;
+      await tester.pumpWidget(_app(reviews, auth: auth));
+      await tester.pump();
+      await tester.tap(find.byKey(reviewReportButtonKey));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey<String>('review-report-reason-spam')),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+      await tester.pump();
+      expect(find.text('신고를 접수하지 못했습니다. 다시 시도해 주세요.'), findsOneWidget);
+      expect(reviews.reportCalls, 1);
+      await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+      await tester.pumpAndSettle();
+      expect(reviews.reportCalls, 2);
+      expect(find.text('신고가 접수되었습니다.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'guest report resumes after login only for the same visible review',
+    (tester) async {
+      final authRepository = _FakeAuthRepository();
+      final auth = AuthController(authRepository)..initialize();
+      addTearDown(auth.dispose);
+      final reviews = _FakeReviewRepository()..rows.add(_review('other-a'));
+      var signInRequests = 0;
+      await tester.pumpWidget(
+        _app(reviews, auth: auth, onSignIn: () => signInRequests++),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(reviewReportButtonKey));
+      await tester.pump();
+      expect(signInRequests, 1);
+      authRepository.signIn();
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.text('리뷰 신고'), findsOneWidget);
+      await tester.tap(find.text('취소').last);
+      await tester.pumpAndSettle();
+      expect(reviews.reportCalls, 0);
+    },
+  );
+
+  testWidgets('store switch clears pending guest report', (tester) async {
+    final authRepository = _FakeAuthRepository();
+    final auth = AuthController(authRepository)..initialize();
+    addTearDown(auth.dispose);
+    final reviews = _FakeReviewRepository()..rows.add(_review('other-a'));
+    await tester.pumpWidget(_app(reviews, auth: auth, onSignIn: () {}));
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportButtonKey));
+    await tester.pumpWidget(_app(reviews, storeId: 'store-b', auth: auth));
+    authRepository.signIn();
+    await tester.pumpAndSettle();
+    expect(find.text('리뷰 신고'), findsNothing);
+    expect(reviews.reportCalls, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('removed review cannot reopen pending guest report', (
+    tester,
+  ) async {
+    final authRepository = _FakeAuthRepository();
+    final auth = AuthController(authRepository)..initialize();
+    addTearDown(auth.dispose);
+    final reviews = _FakeReviewRepository()..rows.add(_review('other-a'));
+    await tester.pumpWidget(_app(reviews, auth: auth, onSignIn: () {}));
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportButtonKey));
+    reviews.rows.clear();
+    authRepository.signIn();
+    await tester.pumpAndSettle();
+    expect(find.text('리뷰 신고'), findsNothing);
+    expect(reviews.reportCalls, 0);
+  });
+
+  testWidgets(
+    'duplicate report shows safe feedback and does not submit twice',
+    (tester) async {
+      final authRepository = _FakeAuthRepository()..signIn();
+      final auth = AuthController(authRepository)..initialize();
+      addTearDown(auth.dispose);
+      final reviews = _FakeReviewRepository()
+        ..rows.add(_review('other-a'))
+        ..nextReportFailure = ReviewFailure.alreadyExists;
+      await tester.pumpWidget(_app(reviews, auth: auth));
+      await tester.pump();
+      await tester.tap(find.byKey(reviewReportButtonKey));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey<String>('review-report-reason-spam')),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+      await tester.pump();
+      expect(find.text('이미 신고한 리뷰입니다.'), findsOneWidget);
+      expect(reviews.reportCalls, 1);
+    },
+  );
+
+  testWidgets('open report cannot submit after store switch', (tester) async {
+    final authRepository = _FakeAuthRepository()..signIn();
+    final auth = AuthController(authRepository)..initialize();
+    addTearDown(auth.dispose);
+    final reviews = _FakeReviewRepository()..rows.add(_review('other-a'));
+    await tester.pumpWidget(_app(reviews, auth: auth));
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportButtonKey));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(_app(reviews, storeId: 'store-b', auth: auth));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('review-report-reason-spam')),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+    await tester.pumpAndSettle();
+    expect(reviews.reportCalls, 0);
+    expect(find.text('리뷰 신고'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('report completion after section disposal is safe', (
+    tester,
+  ) async {
+    final authRepository = _FakeAuthRepository()..signIn();
+    final auth = AuthController(authRepository)..initialize();
+    addTearDown(auth.dispose);
+    final gate = Completer<void>();
+    final reviews = _FakeReviewRepository()
+      ..rows.add(_review('other-a'))
+      ..reportGate = gate.future;
+    await tester.pumpWidget(_app(reviews, auth: auth));
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('review-report-reason-spam')),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+    await tester.pump();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    gate.complete();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Widget _app(
@@ -323,6 +563,12 @@ class _FakeReviewRepository implements ReviewRepository {
   int updateCalls = 0;
   int deleteCalls = 0;
   String? lastContent;
+  int reportCalls = 0;
+  String? lastReportReviewId;
+  ReviewReportReason? lastReportReason;
+  String? lastReportDetail;
+  Future<void>? reportGate;
+  ReviewFailure? nextReportFailure;
 
   @override
   Future<List<StoreReview>> loadForStore(
@@ -372,6 +618,23 @@ class _FakeReviewRepository implements ReviewRepository {
   Future<void> delete(String reviewId) async {
     deleteCalls++;
     rows.removeWhere((row) => row.id == reviewId);
+  }
+
+  @override
+  Future<void> report({
+    required String reviewId,
+    required ReviewReportReason reason,
+    required String? detail,
+  }) async {
+    reportCalls++;
+    lastReportReviewId = reviewId;
+    lastReportReason = reason;
+    lastReportDetail = detail;
+    await reportGate;
+    if (nextReportFailure case final failure?) {
+      nextReportFailure = null;
+      throw ReviewException(failure);
+    }
   }
 }
 

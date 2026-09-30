@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../domain/review.dart';
+import '../domain/review_report.dart';
 import '../domain/review_repository.dart';
 
 const reviewWriteButtonKey = ValueKey<String>('review-write-button');
@@ -16,6 +17,13 @@ const reviewCheckResultButtonKey = ValueKey<String>(
 );
 const reviewEditButtonKey = ValueKey<String>('review-edit-button');
 const reviewDeleteButtonKey = ValueKey<String>('review-delete-button');
+const reviewReportButtonKey = ValueKey<String>('review-report-button');
+const reviewReportSubmitButtonKey = ValueKey<String>(
+  'review-report-submit-button',
+);
+const reviewReportDetailFieldKey = ValueKey<String>(
+  'review-report-detail-field',
+);
 
 ValueKey<String> reviewPreferenceKey(int rating) =>
     ValueKey<String>('review-preference-$rating');
@@ -54,6 +62,7 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
   int? _rating;
   int _loadGeneration = 0;
   bool _pendingWrite = false;
+  String? _pendingReportReviewId;
   bool _nicknameRequested = false;
   bool _editing = false;
   bool _saving = false;
@@ -111,6 +120,7 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
         oldWidget.authControllerListenable != widget.authControllerListenable) {
       _clearEditor();
       _pendingWrite = false;
+      _pendingReportReviewId = null;
       _nicknameRequested = false;
       _load();
     }
@@ -141,6 +151,17 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
       _nicknameRequested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _pendingWrite) widget.onSetNickname?.call();
+      });
+    }
+    if (_pendingReportReviewId != null &&
+        _activeAuthController?.state == AuthGateState.signedInNeedsProfile &&
+        !_nicknameRequested &&
+        widget.onSetNickname != null) {
+      _nicknameRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pendingReportReviewId != null) {
+          widget.onSetNickname?.call();
+        }
       });
     }
   }
@@ -189,6 +210,22 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
             _beginEditor();
           }
         });
+        final pendingReport = _pendingReportReviewId;
+        if (pendingReport != null && _readyUserId != null) {
+          _pendingReportReviewId = null;
+          final target = reviews.where((review) => review.id == pendingReport);
+          if (target.isNotEmpty &&
+              target.first.userId != _readyUserId &&
+              !target.first.isHidden) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  generation == _loadGeneration &&
+                  storeId == widget.storeId) {
+                _openReport(target.first);
+              }
+            });
+          }
+        }
       } on Object {
         if (!mounted ||
             generation != _loadGeneration ||
@@ -228,6 +265,7 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
     }
     setState(() {
       _pendingWrite = true;
+      _pendingReportReviewId = null;
       _nicknameRequested = false;
     });
     if (_activeAuthController?.state == AuthGateState.signedInNeedsProfile) {
@@ -238,6 +276,58 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
       widget.onRetryAuth?.call();
     } else {
       widget.onSignIn?.call();
+    }
+  }
+
+  void _requestReport(StoreReview review) {
+    if (_readyUserId != null) {
+      _openReport(review);
+      return;
+    }
+    _pendingReportReviewId = review.id;
+    _pendingWrite = false;
+    _nicknameRequested = false;
+    if (_activeAuthController?.state == AuthGateState.signedInNeedsProfile) {
+      _nicknameRequested = true;
+      widget.onSetNickname?.call();
+    } else if (_activeAuthController?.state == AuthGateState.error &&
+        _activeAuthController?.hasSession == true) {
+      widget.onRetryAuth?.call();
+    } else {
+      widget.onSignIn?.call();
+    }
+  }
+
+  Future<void> _openReport(StoreReview review) async {
+    final storeId = widget.storeId;
+    final userId = _readyUserId;
+    if (userId == null ||
+        review.userId == userId ||
+        review.isHidden ||
+        _reviews?.any((row) => row.id == review.id) != true) {
+      return;
+    }
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ReviewReportDialog(
+        reviewId: review.id,
+        repository: widget.repository,
+        isCurrent: () =>
+            mounted &&
+            storeId == widget.storeId &&
+            userId == _readyUserId &&
+            _reviews?.any((row) => row.id == review.id && !row.isHidden) ==
+                true,
+      ),
+    );
+    if (mounted &&
+        submitted == true &&
+        storeId == widget.storeId &&
+        userId == _readyUserId) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('신고가 접수되었습니다.')));
     }
   }
 
@@ -459,6 +549,13 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
                   ),
                 ],
               ),
+            if (!isOwn && !review.isHidden)
+              TextButton.icon(
+                key: reviewReportButtonKey,
+                onPressed: () => _requestReport(review),
+                icon: const Icon(Icons.flag_outlined),
+                label: const Text('신고'),
+              ),
           ],
         ),
       ),
@@ -529,4 +626,154 @@ class _StoreReviewSectionState extends State<StoreReviewSection> {
       ],
     );
   }
+}
+
+class _ReviewReportDialog extends StatefulWidget {
+  const _ReviewReportDialog({
+    required this.reviewId,
+    required this.repository,
+    required this.isCurrent,
+  });
+
+  final String reviewId;
+  final ReviewRepository repository;
+  final bool Function() isCurrent;
+
+  @override
+  State<_ReviewReportDialog> createState() => _ReviewReportDialogState();
+}
+
+class _ReviewReportDialogState extends State<_ReviewReportDialog> {
+  final TextEditingController _detailController = TextEditingController();
+  ReviewReportReason? _reason;
+  String? _error;
+  bool _submitting = false;
+  bool _unknownOutcome = false;
+
+  @override
+  void dispose() {
+    _detailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting || _unknownOutcome) return;
+    if (!widget.isCurrent()) {
+      Navigator.pop(context, false);
+      return;
+    }
+    final reason = _reason;
+    if (reason == null) {
+      setState(() => _error = '신고 사유를 선택해 주세요.');
+      return;
+    }
+    final detail = normalizedReportDetail(reason, _detailController.text);
+    final validation = reportDetailValidationMessage(reason, detail);
+    if (validation != null) {
+      setState(() => _error = validation);
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await widget.repository.report(
+        reviewId: widget.reviewId,
+        reason: reason,
+        detail: detail,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on ReviewException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _unknownOutcome = error.failure == ReviewFailure.unknownOutcome;
+        _error = switch (error.failure) {
+          ReviewFailure.alreadyExists => '이미 신고한 리뷰입니다.',
+          ReviewFailure.noLongerAvailable => '신고할 수 없는 리뷰입니다.',
+          ReviewFailure.unavailable => '신고를 접수하지 못했습니다. 다시 시도해 주세요.',
+          ReviewFailure.unknownOutcome =>
+            '접수 결과를 확인하지 못했습니다. 중복 신고를 피하려면 나중에 확인해 주세요.',
+        };
+      });
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _unknownOutcome = true;
+          _error = '접수 결과를 확인하지 못했습니다. 중복 신고를 피하려면 나중에 확인해 주세요.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_submitting,
+    child: AlertDialog(
+      title: const Text('리뷰 신고'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('운영자가 내용을 확인합니다. 신고만으로 리뷰가 숨겨지지는 않습니다.'),
+            const SizedBox(height: 12),
+            RadioGroup<ReviewReportReason>(
+              groupValue: _reason,
+              onChanged: (value) {
+                if (_submitting) return;
+                setState(() {
+                  _reason = value;
+                  _error = null;
+                });
+              },
+              child: Column(
+                children: [
+                  for (final reason in ReviewReportReason.values)
+                    RadioListTile<ReviewReportReason>(
+                      key: ValueKey<String>(
+                        'review-report-reason-${reason.name}',
+                      ),
+                      title: Text(reviewReportReasonLabel(reason)),
+                      value: reason,
+                    ),
+                ],
+              ),
+            ),
+            TextField(
+              key: reviewReportDetailFieldKey,
+              controller: _detailController,
+              enabled: !_submitting,
+              maxLines: 3,
+              maxLength: 990,
+              decoration: InputDecoration(
+                labelText: _reason == ReviewReportReason.other
+                    ? '설명 (필수)'
+                    : '설명 (선택)',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context, false),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          key: reviewReportSubmitButtonKey,
+          onPressed: _submitting || _unknownOutcome ? null : _submit,
+          child: Text(_submitting ? '접수 중' : '신고 접수'),
+        ),
+      ],
+    ),
+  );
 }

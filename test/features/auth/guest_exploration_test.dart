@@ -12,6 +12,7 @@ import 'package:burger_map_korea/features/menu/domain/menu_item.dart';
 import 'package:burger_map_korea/features/menu/domain/menu_repository.dart';
 import 'package:burger_map_korea/features/reviews/domain/review.dart';
 import 'package:burger_map_korea/features/reviews/domain/review_repository.dart';
+import 'package:burger_map_korea/features/reviews/domain/review_report.dart';
 import 'package:burger_map_korea/features/reviews/presentation/store_review_section.dart';
 import 'package:burger_map_korea/features/stores/domain/burger_style.dart';
 import 'package:burger_map_korea/features/stores/domain/store_location.dart';
@@ -280,4 +281,11 @@ class _EmptyReviewRepository implements ReviewRepository {
 
   @override
   Future<void> delete(String reviewId) async {}
+
+  @override
+  Future<void> report({
+    required String reviewId,
+    required ReviewReportReason reason,
+    required String? detail,
+  }) async {}
 }

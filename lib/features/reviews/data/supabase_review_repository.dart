@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/review.dart';
+import '../domain/review_report.dart';
 import '../domain/review_repository.dart';
 
 const defaultReviewTimeout = Duration(seconds: 10);
@@ -121,6 +122,20 @@ class SupabaseReviewRepository implements ReviewRepository {
     if (rows.isEmpty) {
       throw const ReviewException(ReviewFailure.noLongerAvailable);
     }
+  });
+
+  @override
+  Future<void> report({
+    required String reviewId,
+    required ReviewReportReason reason,
+    required String? detail,
+  }) => _write((client, _) async {
+    // Identity and moderation fields are assigned by the database, not clients.
+    await client.from('review_reports').insert({
+      'review_id': reviewId,
+      'reason': reviewReportDatabaseReason(reason),
+      'detail': detail,
+    });
   });
 
   Future<void> _write(

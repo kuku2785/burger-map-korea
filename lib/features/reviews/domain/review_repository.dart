@@ -1,4 +1,5 @@
 import 'review.dart';
+import 'review_report.dart';
 
 enum ReviewFailure {
   unavailable,
@@ -26,4 +27,9 @@ abstract class ReviewRepository {
     required String? content,
   });
   Future<void> delete(String reviewId);
+  Future<void> report({
+    required String reviewId,
+    required ReviewReportReason reason,
+    required String? detail,
+  });
 }

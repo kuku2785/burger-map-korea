@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:burger_map_korea/features/reviews/data/supabase_review_repository.dart';
 import 'package:burger_map_korea/features/reviews/domain/review_repository.dart';
+import 'package:burger_map_korea/features/reviews/domain/review_report.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -114,6 +115,20 @@ void main() {
         'store_id': 'store-a',
         'rating': 3,
         'content': null,
+      });
+
+      await repository.report(
+        reviewId: 'review-other',
+        reason: ReviewReportReason.falseInformation,
+        detail: normalizedReportDetail(ReviewReportReason.falseInformation, ''),
+      );
+      final report = requests.last;
+      expect(report.method, 'POST');
+      expect(report.uri.path, '/rest/v1/review_reports');
+      expect(jsonDecode(report.body), {
+        'review_id': 'review-other',
+        'reason': 'other',
+        'detail': '허위 정보 의심',
       });
 
       await repository.update(
@@ -262,6 +277,41 @@ void main() {
           ),
         ),
       );
+    },
+  );
+
+  test(
+    'report requires an authenticated session before any REST write',
+    () async {
+      final requests = <Uri>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final subscription = server.listen((request) async {
+        requests.add(request.uri);
+        request.response.statusCode = HttpStatus.created;
+        await request.response.close();
+      });
+      addTearDown(subscription.cancel);
+      final client = SupabaseClient(
+        'http://127.0.0.1:${server.port}',
+        'local-test-placeholder',
+      );
+      addTearDown(client.dispose);
+      await expectLater(
+        SupabaseReviewRepository(clientLoader: () async => client).report(
+          reviewId: 'review-a',
+          reason: ReviewReportReason.spam,
+          detail: null,
+        ),
+        throwsA(
+          isA<ReviewException>().having(
+            (error) => error.failure,
+            'failure',
+            ReviewFailure.unavailable,
+          ),
+        ),
+      );
+      expect(requests, isEmpty);
     },
   );
 }
