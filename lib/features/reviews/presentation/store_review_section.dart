@@ -649,6 +649,7 @@ class _ReviewReportDialogState extends State<_ReviewReportDialog> {
   String? _error;
   bool _submitting = false;
   bool _unknownOutcome = false;
+  bool _invalidated = false;
 
   @override
   void dispose() {
@@ -657,9 +658,14 @@ class _ReviewReportDialogState extends State<_ReviewReportDialog> {
   }
 
   Future<void> _submit() async {
-    if (_submitting || _unknownOutcome) return;
+    if (_submitting || _unknownOutcome || _invalidated) return;
     if (!widget.isCurrent()) {
-      Navigator.pop(context, false);
+      // A public-store refresh can dispose the section while this dialog route
+      // remains open. Keep the draft and explain why no request was sent.
+      setState(() {
+        _invalidated = true;
+        _error = '로그인 또는 매장 정보가 변경되었습니다. 신고 창을 닫고 다시 열어 주세요.';
+      });
       return;
     }
     final reason = _reason;
@@ -723,7 +729,7 @@ class _ReviewReportDialogState extends State<_ReviewReportDialog> {
             RadioGroup<ReviewReportReason>(
               groupValue: _reason,
               onChanged: (value) {
-                if (_submitting) return;
+                if (_submitting || _invalidated) return;
                 setState(() {
                   _reason = value;
                   _error = null;
@@ -745,7 +751,7 @@ class _ReviewReportDialogState extends State<_ReviewReportDialog> {
             TextField(
               key: reviewReportDetailFieldKey,
               controller: _detailController,
-              enabled: !_submitting,
+              enabled: !_submitting && !_invalidated,
               maxLines: 3,
               maxLength: 990,
               decoration: InputDecoration(
@@ -770,7 +776,9 @@ class _ReviewReportDialogState extends State<_ReviewReportDialog> {
         ),
         FilledButton(
           key: reviewReportSubmitButtonKey,
-          onPressed: _submitting || _unknownOutcome ? null : _submit,
+          onPressed: _submitting || _unknownOutcome || _invalidated
+              ? null
+              : _submit,
           child: Text(_submitting ? '접수 중' : '신고 접수'),
         ),
       ],

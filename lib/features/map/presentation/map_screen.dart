@@ -1356,8 +1356,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 reviewRepository: widget.reviewRepository,
                 authControllerListenable: widget.authControllerListenable,
                 onReviewSignIn: widget.onSignIn,
-                onReviewSetNickname: widget.onSetNickname,
-                onReviewRetryAuth: widget.onRetryAuth,
+                // Auth actions may become available after this route opens.
+                onReviewSetNickname: () => widget.onSetNickname?.call(),
+                onReviewRetryAuth: () => widget.onRetryAuth?.call(),
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>
                     _setStoreFavorite(store, isFavorite),
@@ -1379,8 +1380,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 reviewRepository: widget.reviewRepository,
                 authControllerListenable: widget.authControllerListenable,
                 onReviewSignIn: widget.onSignIn,
-                onReviewSetNickname: widget.onSetNickname,
-                onReviewRetryAuth: widget.onRetryAuth,
+                onReviewSetNickname: () => widget.onSetNickname?.call(),
+                onReviewRetryAuth: () => widget.onRetryAuth?.call(),
                 externalUriLauncher: externalUriLauncher,
                 isFavorite: _favoriteStoreIds.contains(store.id),
                 onFavoriteChanged: (isFavorite) =>

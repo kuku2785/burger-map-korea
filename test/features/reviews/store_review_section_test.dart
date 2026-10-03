@@ -482,7 +482,49 @@ void main() {
     await tester.tap(find.byKey(reviewReportSubmitButtonKey));
     await tester.pumpAndSettle();
     expect(reviews.reportCalls, 0);
+    expect(find.text('리뷰 신고'), findsOneWidget);
+    expect(
+      find.text('로그인 또는 매장 정보가 변경되었습니다. 신고 창을 닫고 다시 열어 주세요.'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(reviewReportSubmitButtonKey))
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.text('취소').last);
+    await tester.pumpAndSettle();
     expect(find.text('리뷰 신고'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('logout invalidates an open report with feedback and no write', (
+    tester,
+  ) async {
+    final authRepository = _FakeAuthRepository()..signIn();
+    final auth = AuthController(authRepository)..initialize();
+    addTearDown(auth.dispose);
+    final reviews = _FakeReviewRepository()..rows.add(_review('other-a'));
+    await tester.pumpWidget(_app(reviews, auth: auth));
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('review-report-reason-spam')),
+    );
+    await tester.pump();
+    await auth.signOut();
+    await tester.pump();
+    await tester.tap(find.byKey(reviewReportSubmitButtonKey));
+    await tester.pumpAndSettle();
+    expect(reviews.reportCalls, 0);
+    expect(find.text('리뷰 신고'), findsOneWidget);
+    expect(
+      find.text('로그인 또는 매장 정보가 변경되었습니다. 신고 창을 닫고 다시 열어 주세요.'),
+      findsOneWidget,
+    );
+    expect(find.text('신고가 접수되었습니다.'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
