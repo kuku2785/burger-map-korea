@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../auth/presentation/account_deletion_button.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/config/app_config.dart';
@@ -380,6 +381,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tooltip: '계정 상태 다시 시도',
               icon: const Icon(Icons.sync_problem_outlined),
               onPressed: widget.onRetryAuth,
+            ),
+          if (widget.authControllerListenable != null)
+            ValueListenableBuilder<AuthController?>(
+              valueListenable: widget.authControllerListenable!,
+              builder: (context, controller, _) => controller == null
+                  ? const SizedBox.shrink()
+                  : AccountDeletionButton(controller: controller),
             ),
           if (widget.onSignOut != null)
             IconButton(

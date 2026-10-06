@@ -149,11 +149,13 @@ class SupabaseStoreLocationsLoader {
 Future<SupabaseClient> initializeSupabaseClient({
   required String url,
   required String publishableKey,
+  LocalStorage? sessionStorage,
 }) async {
   final supabase = await Supabase.initialize(
     url: url.trim(),
     publishableKey: publishableKey.trim(),
     debug: false,
+    authOptions: FlutterAuthClientOptions(localStorage: sessionStorage),
   );
   return supabase.client;
 }

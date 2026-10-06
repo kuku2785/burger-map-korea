@@ -360,6 +360,9 @@ class _AuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> deleteAccount() async => throw UnimplementedError();
+
+  @override
   Future<void> signOut() async {
     userId = null;
     _changes.add(null);

@@ -11,6 +11,7 @@ enum AuthFailureKind {
   authentication,
   canceled,
   profile,
+  accountDeletionCleanup,
   unknown,
 }
 
@@ -34,4 +35,8 @@ abstract interface class AuthRepository {
   Future<AuthUserProfile> createCurrentProfile(String nickname);
 
   Future<void> signOut();
+
+  /// Deletes only the caller account and clears its local session on success.
+  /// A failed/ambiguous server response must preserve the local session.
+  Future<void> deleteAccount();
 }

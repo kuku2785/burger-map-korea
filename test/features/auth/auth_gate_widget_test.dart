@@ -429,5 +429,8 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> deleteAccount() async => throw UnimplementedError();
+
+  @override
   Future<void> signOut() async => emitUser(null);
 }

@@ -19,12 +19,68 @@ class SupabaseAuthRepository implements AuthRepository {
     this._client, {
     required this.googleServerClientId,
     GoogleTokenLoader? googleTokenLoader,
+    this.sessionStorage,
   }) : _googleTokenLoader =
            googleTokenLoader ?? NativeGoogleTokenProvider().authenticate;
 
   final SupabaseClient _client;
   final String googleServerClientId;
   final GoogleTokenLoader _googleTokenLoader;
+  final LocalStorage? sessionStorage;
+  bool _deletingAccount = false;
+
+  @override
+  Future<void> deleteAccount() async {
+    if (_deletingAccount) return;
+    final session = _client.auth.currentSession;
+    if (session == null || session.user.isAnonymous) {
+      throw const AuthFlowException(AuthFailureKind.authentication);
+    }
+    _deletingAccount = true;
+    try {
+      final response = await _client.functions
+          .invoke(
+            'delete-account',
+            method: HttpMethod.post,
+            headers: {'Authorization': 'Bearer ${session.accessToken}'},
+            body: const {'confirmation': 'DELETE'},
+          )
+          .timeout(const Duration(seconds: 30));
+      if (response.status != 204) {
+        throw const AuthFlowException(AuthFailureKind.unknown);
+      }
+      // Do not clear a different account that signed in while HTTP was pending.
+      if (currentUserId != session.user.id && currentUserId != null) return;
+      try {
+        // This SDK removes the in-memory session before remote logout. A
+        // deleted user/remote failure must not prevent persistent local cleanup.
+        try {
+          await _client.auth
+              .signOut(scope: SignOutScope.local)
+              .timeout(const Duration(seconds: 5));
+        } on Object {
+          if (_client.auth.currentSession != null) rethrow;
+        }
+        if (currentUserId == null) {
+          await sessionStorage?.removePersistedSession();
+        }
+      } on Object {
+        throw const AuthFlowException(AuthFailureKind.accountDeletionCleanup);
+      }
+    } on FunctionException catch (error) {
+      throw AuthFlowException(
+        error.status == 401
+            ? AuthFailureKind.authentication
+            : AuthFailureKind.unknown,
+      );
+    } on AuthFlowException {
+      rethrow;
+    } on Object {
+      throw const AuthFlowException(AuthFailureKind.network);
+    } finally {
+      _deletingAccount = false;
+    }
+  }
 
   @override
   String? get currentUserId => _client.auth.currentUser?.id;

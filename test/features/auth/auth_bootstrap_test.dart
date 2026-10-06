@@ -101,5 +101,8 @@ class _IdleAuthRepository implements AuthRepository {
   Future<void> signInWithGoogle() => throw UnimplementedError();
 
   @override
+  Future<void> deleteAccount() async => throw UnimplementedError();
+
+  @override
   Future<void> signOut() => throw UnimplementedError();
 }

@@ -16,6 +16,13 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   final config = AppConfig.fromDartDefines();
+  // Share the SDK's default storage with account deletion so removal is awaited.
+  final sessionStorage = config.hasSupabaseConfiguration
+      ? SharedPreferencesLocalStorage(
+          persistSessionKey:
+              'sb-${Uri.parse(config.normalizedSupabaseUrl).host.split('.').first}-auth-token',
+        )
+      : null;
   logDevelopmentConfigurationDiagnostics(config);
   SupabaseClient? sharedClient;
   Future<SupabaseClient>? clientInitialization;
@@ -30,6 +37,7 @@ void main() {
         initializeSupabaseClient(
               url: config.normalizedSupabaseUrl,
               publishableKey: config.normalizedSupabasePublishableKey,
+              sessionStorage: sessionStorage,
             )
             .then((value) {
               sharedClient = value;
@@ -64,6 +72,7 @@ void main() {
             SupabaseAuthRepository(
               await loadSupabaseClient(),
               googleServerClientId: googleServerClientId,
+              sessionStorage: sessionStorage,
             ),
             googleSignInEnabled:
                 const bool.fromEnvironment('GOOGLE_SIGN_IN_ENABLED') &&

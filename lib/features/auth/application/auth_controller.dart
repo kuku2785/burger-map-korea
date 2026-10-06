@@ -51,16 +51,19 @@ class AuthController extends ChangeNotifier {
   bool _signingInWithGoogle = false;
   bool _submittingNickname = false;
   bool _signingOut = false;
+  bool _deletingAccount = false;
   bool _magicLinkSent = false;
   String? _message;
 
   AuthGateState get state => _state;
   bool get hasSession => _repository.currentUserId != null;
+  String? get currentUserId => _repository.currentUserId;
   AuthUserProfile? get profile => _profile;
   bool get sendingMagicLink => _sendingMagicLink;
   bool get signingInWithGoogle => _signingInWithGoogle;
   bool get submittingNickname => _submittingNickname;
   bool get signingOut => _signingOut;
+  bool get deletingAccount => _deletingAccount;
   bool get magicLinkSent => _magicLinkSent;
   String? get message => _message;
 
@@ -74,7 +77,9 @@ class AuthController extends ChangeNotifier {
     unawaited(_resolveUser(_repository.currentUserId));
   }
 
-  Future<void> retry() => _resolveUser(_repository.currentUserId);
+  Future<void> retry() => _deletingAccount
+      ? Future<void>.value()
+      : _resolveUser(_repository.currentUserId);
 
   Future<void> sendMagicLink(String email) async {
     if (_sendingMagicLink || _signingInWithGoogle || _disposed) return;
@@ -147,6 +152,7 @@ class AuthController extends ChangeNotifier {
 
   Future<void> submitNickname(String value) async {
     if (_submittingNickname ||
+        _deletingAccount ||
         _disposed ||
         _state != AuthGateState.signedInNeedsProfile) {
       return;
@@ -202,7 +208,7 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    if (_signingOut || _disposed) return;
+    if (_signingOut || _deletingAccount || _disposed) return;
     _signingOut = true;
     _message = null;
     _notify();
@@ -225,7 +231,61 @@ class AuthController extends ChangeNotifier {
   }
 
   void _handleUserChanged(String? userId) {
+    if (_deletingAccount && userId == _deletingUserId) return;
     unawaited(_resolveUser(userId));
+  }
+
+  String? _deletingUserId;
+
+  Future<bool> deleteAccount() async {
+    final userId = _repository.currentUserId;
+    if (_disposed ||
+        _deletingAccount ||
+        _signingOut ||
+        _submittingNickname ||
+        userId == null) {
+      return false;
+    }
+    _deletingAccount = true;
+    _deletingUserId = userId;
+    ++_generation; // Discard any earlier profile read/create completion.
+    _profileLoadFuture = null;
+    _resolvingUserId = null;
+    _message = null;
+    _notify();
+    try {
+      await _repository.deleteAccount();
+      if (_disposed) return false;
+      if (_repository.currentUserId != null) return false;
+      _setSignedOut();
+      return true;
+    } on Object catch (error) {
+      if (_disposed ||
+          (_repository.currentUserId != userId &&
+              _repository.currentUserId != null)) {
+        return false;
+      }
+      if (error is AuthFlowException &&
+          error.kind == AuthFailureKind.accountDeletionCleanup) {
+        if (_repository.currentUserId == null) _setSignedOut();
+        _message = '계정은 삭제됐지만 기기의 로그인 정보 정리를 완료하지 못했습니다. 앱을 종료하고 지원에 문의해 주세요.';
+      } else if (error is AuthFlowException &&
+          error.kind == AuthFailureKind.authentication) {
+        _message = '인증을 확인하지 못했습니다. 삭제 완료 여부를 확인한 뒤 다시 시도해 주세요.';
+      } else {
+        _message = '계정 삭제 완료를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+      }
+      return false;
+    } finally {
+      if (!_disposed) {
+        _deletingAccount = false;
+        _deletingUserId = null;
+        if (_state == AuthGateState.signedInProfileLoading && hasSession) {
+          unawaited(_resolveUser(_repository.currentUserId));
+        }
+        _notify();
+      }
+    }
   }
 
   void _handleAuthStreamError(Object error, StackTrace stackTrace) {
